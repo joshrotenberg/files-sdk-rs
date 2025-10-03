@@ -188,7 +188,7 @@ pub struct FileUploadPartEntity {
     pub next_partsize: Option<i64>,
 
     /// Reference identifier for this upload
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "ref", skip_serializing_if = "Option::is_none")]
     pub ref_: Option<String>,
 
     /// Type of upload action

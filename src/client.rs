@@ -246,6 +246,31 @@ impl FilesClient {
         self.handle_response(response).await
     }
 
+    /// Performs a POST request with form data to the Files.com API
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - API endpoint path (without base URL)
+    /// * `form` - Form data as key-value pairs
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request fails or returns a non-success status code
+    pub async fn post_form<T: Serialize>(&self, path: &str, form: T) -> Result<serde_json::Value> {
+        let url = format!("{}{}", self.inner.base_url, path);
+
+        let response = self
+            .inner
+            .client
+            .post(&url)
+            .header("X-FilesAPI-Key", &self.inner.api_key)
+            .form(&form)
+            .send()
+            .await?;
+
+        self.handle_response(response).await
+    }
+
     /// Handles HTTP response and converts to Result
     ///
     /// Processes status codes and extracts error information when applicable

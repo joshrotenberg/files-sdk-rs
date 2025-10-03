@@ -126,7 +126,7 @@ impl FileHandler {
 
         // Stage 2: Upload file data to the provided URL
         // This is an external URL (not Files.com API), typically to cloud storage
-        if let Some(upload_uri) = &upload_part.upload_uri {
+        let _etag = if let Some(upload_uri) = &upload_part.upload_uri {
             let http_client = reqwest::Client::new();
             let http_method = upload_part
                 .http_method
@@ -147,17 +147,39 @@ impl FileHandler {
                 }
             }
 
-            // Upload the file data
-            request.body(data.to_vec()).send().await?;
-        }
+            // Upload the file data and capture the response
+            let upload_response = request.body(data.to_vec()).send().await?;
+
+            // Extract ETag from response headers
+            upload_response
+                .headers()
+                .get("etag")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.trim_matches('"').to_string())
+        } else {
+            None
+        };
 
         // Stage 3: Finalize upload with Files.com
         let endpoint = format!("/files{}", path);
-        let body = json!({
-            "action": "end",
-        });
 
-        let response = self.client.post_raw(&endpoint, body).await?;
+        // Build the finalization request as form data
+        let mut form = vec![("action", "end".to_string())];
+
+        // Add ref (upload reference) - this is required to identify the upload
+        if let Some(ref_value) = &upload_part.ref_ {
+            form.push(("ref", ref_value.clone()));
+        }
+
+        // Note: etags might not be needed when ref is provided
+        // Commenting out for now to test
+        // if let Some(etag_value) = etag {
+        //     let part_number = upload_part.part_number.unwrap_or(1);
+        //     form.push(("etags[etag]", etag_value));
+        //     form.push(("etags[part]", part_number.to_string()));
+        // }
+
+        let response = self.client.post_form(&endpoint, &form).await?;
         Ok(serde_json::from_value(response)?)
     }
 
