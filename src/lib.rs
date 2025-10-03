@@ -122,6 +122,7 @@
 
 pub mod api_keys;
 pub mod automations;
+pub mod behaviors;
 pub mod bundles;
 pub mod client;
 pub mod file_actions;
@@ -143,6 +144,7 @@ pub use client::{FilesClient, FilesClientBuilder};
 // Re-export handlers
 pub use api_keys::ApiKeyHandler;
 pub use automations::AutomationHandler;
+pub use behaviors::BehaviorHandler;
 pub use bundles::BundleHandler;
 pub use file_actions::FileActionHandler;
 pub use files::FileHandler;
@@ -159,6 +161,7 @@ pub use users::UserHandler;
 // Re-export common types
 pub use api_keys::ApiKeyEntity;
 pub use automations::AutomationEntity;
+pub use behaviors::BehaviorEntity;
 pub use bundles::BundleEntity;
 pub use groups::GroupEntity;
 pub use inbox_uploads::{InboxRegistrationEntity, InboxUploadEntity};
