@@ -136,6 +136,7 @@ pub mod permissions;
 pub mod remote_servers;
 pub mod requests;
 pub mod sessions;
+pub mod site;
 pub mod types;
 pub mod users;
 
@@ -158,6 +159,7 @@ pub use permissions::PermissionHandler;
 pub use remote_servers::RemoteServerHandler;
 pub use requests::RequestHandler;
 pub use sessions::SessionHandler;
+pub use site::SiteHandler;
 pub use users::UserHandler;
 
 // Re-export common types
@@ -173,6 +175,7 @@ pub use permissions::PermissionEntity;
 pub use remote_servers::RemoteServerEntity;
 pub use requests::RequestEntity;
 pub use sessions::SessionEntity;
+pub use site::{SiteEntity, SiteUsageEntity};
 pub use types::{FileEntity, FileUploadPartEntity, FolderEntity, PaginationInfo};
 pub use users::UserEntity;
 
