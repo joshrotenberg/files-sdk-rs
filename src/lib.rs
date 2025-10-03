@@ -121,6 +121,7 @@
 //! API keys can be obtained from the Files.com web interface under Account Settings.
 
 pub mod api_keys;
+pub mod bundles;
 pub mod client;
 pub mod file_actions;
 pub mod files;
@@ -136,6 +137,7 @@ pub use client::{FilesClient, FilesClientBuilder};
 
 // Re-export handlers
 pub use api_keys::ApiKeyHandler;
+pub use bundles::BundleHandler;
 pub use file_actions::FileActionHandler;
 pub use files::FileHandler;
 pub use folders::FolderHandler;
@@ -146,6 +148,7 @@ pub use users::UserHandler;
 
 // Re-export common types
 pub use api_keys::ApiKeyEntity;
+pub use bundles::BundleEntity;
 pub use groups::GroupEntity;
 pub use permissions::PermissionEntity;
 pub use sessions::SessionEntity;
