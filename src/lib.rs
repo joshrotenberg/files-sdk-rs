@@ -125,6 +125,7 @@ pub mod file_actions;
 pub mod files;
 pub mod folders;
 pub mod types;
+pub mod users;
 
 // Re-export client types
 pub use client::{FilesClient, FilesClientBuilder};
@@ -133,9 +134,11 @@ pub use client::{FilesClient, FilesClientBuilder};
 pub use file_actions::FileActionHandler;
 pub use files::FileHandler;
 pub use folders::FolderHandler;
+pub use users::UserHandler;
 
 // Re-export common types
 pub use types::{FileEntity, FileUploadPartEntity, FolderEntity, PaginationInfo};
+pub use users::UserEntity;
 
 // Error handling
 use thiserror::Error;
