@@ -1,0 +1,282 @@
+//! File operations
+//!
+//! This module provides core file operations including:
+//! - Download files
+//! - Upload files (using the two-stage upload process)
+//! - Update file metadata
+//! - Delete files
+//!
+//! Note: File uploads in Files.com use a two-stage process:
+//! 1. Call `FileActionHandler::begin_upload()` to get upload URLs
+//! 2. Use this handler's `upload_file()` to complete the upload
+
+use crate::{FileActionHandler, FileEntity, FilesClient, Result};
+use serde_json::json;
+use std::collections::HashMap;
+
+/// Handler for file operations
+///
+/// Provides methods for downloading, uploading, updating, and deleting files.
+#[derive(Debug, Clone)]
+pub struct FileHandler {
+    client: FilesClient,
+}
+
+impl FileHandler {
+    /// Creates a new FileHandler
+    ///
+    /// # Arguments
+    ///
+    /// * `client` - FilesClient instance
+    pub fn new(client: FilesClient) -> Self {
+        Self { client }
+    }
+
+    /// Download a file or get file information
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - File path to download
+    ///
+    /// # Returns
+    ///
+    /// Returns a `FileEntity` containing file information including a
+    /// `download_uri` for the actual file download.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use files_sdk::{FilesClient, FileHandler};
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder()
+    ///     .api_key("your-api-key")
+    ///     .build()?;
+    ///
+    /// let handler = FileHandler::new(client);
+    /// let file = handler.download_file("/path/to/file.txt").await?;
+    ///
+    /// if let Some(uri) = file.download_uri {
+    ///     println!("Download from: {}", uri);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn download_file(&self, path: &str) -> Result<FileEntity> {
+        let endpoint = format!("/files{}", path);
+        let response = self.client.get_raw(&endpoint).await?;
+        Ok(serde_json::from_value(response)?)
+    }
+
+    /// Get file metadata only (no download URL, no logging)
+    ///
+    /// This is a convenience method that calls `FileActionHandler::get_metadata()`
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - File path
+    pub async fn get_metadata(&self, path: &str) -> Result<FileEntity> {
+        let file_action = FileActionHandler::new(self.client.clone());
+        file_action.get_metadata(path).await
+    }
+
+    /// Upload a file (complete two-stage upload process)
+    ///
+    /// This method handles the complete upload process:
+    /// 1. Calls begin_upload to get upload URLs
+    /// 2. Uploads the file data
+    /// 3. Finalizes the upload
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Destination path for the file
+    /// * `data` - File contents as bytes
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use files_sdk::{FilesClient, FileHandler};
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = FileHandler::new(client);
+    ///
+    /// let data = b"Hello, Files.com!";
+    /// let file = handler.upload_file("/uploads/test.txt", data).await?;
+    /// println!("Uploaded: {:?}", file.path);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn upload_file(&self, path: &str, data: &[u8]) -> Result<FileEntity> {
+        // Stage 1: Begin upload
+        let file_action = FileActionHandler::new(self.client.clone());
+        let upload_parts = file_action
+            .begin_upload(path, Some(data.len() as i64), true)
+            .await?;
+
+        if upload_parts.is_empty() {
+            return Err(crate::FilesError::ApiError {
+                code: 500,
+                message: "No upload parts returned from begin_upload".to_string(),
+            });
+        }
+
+        let upload_part = &upload_parts[0];
+
+        // Stage 2: Upload file data to the provided URL
+        // This is an external URL (not Files.com API), typically to cloud storage
+        if let Some(upload_uri) = &upload_part.upload_uri {
+            let http_client = reqwest::Client::new();
+            let http_method = upload_part
+                .http_method
+                .as_deref()
+                .unwrap_or("PUT")
+                .to_uppercase();
+
+            let mut request = match http_method.as_str() {
+                "PUT" => http_client.put(upload_uri),
+                "POST" => http_client.post(upload_uri),
+                _ => http_client.put(upload_uri),
+            };
+
+            // Add any custom headers
+            if let Some(headers) = &upload_part.headers {
+                for (key, value) in headers {
+                    request = request.header(key, value);
+                }
+            }
+
+            // Upload the file data
+            request.body(data.to_vec()).send().await?;
+        }
+
+        // Stage 3: Finalize upload with Files.com
+        let endpoint = format!("/files{}", path);
+        let body = json!({
+            "action": "end",
+        });
+
+        let response = self.client.post_raw(&endpoint, body).await?;
+        Ok(serde_json::from_value(response)?)
+    }
+
+    /// Update file metadata
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - File path
+    /// * `custom_metadata` - Custom metadata key-value pairs (optional)
+    /// * `provided_mtime` - Custom modification time (optional)
+    /// * `priority_color` - Priority color (optional)
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use files_sdk::{FilesClient, FileHandler};
+    /// # use std::collections::HashMap;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = FileHandler::new(client);
+    ///
+    /// let mut metadata = HashMap::new();
+    /// metadata.insert("category".to_string(), "reports".to_string());
+    ///
+    /// handler.update_file("/path/to/file.txt", Some(metadata), None, None).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn update_file(
+        &self,
+        path: &str,
+        custom_metadata: Option<HashMap<String, String>>,
+        provided_mtime: Option<String>,
+        priority_color: Option<String>,
+    ) -> Result<FileEntity> {
+        let mut body = json!({});
+
+        if let Some(metadata) = custom_metadata {
+            body["custom_metadata"] = json!(metadata);
+        }
+
+        if let Some(mtime) = provided_mtime {
+            body["provided_mtime"] = json!(mtime);
+        }
+
+        if let Some(color) = priority_color {
+            body["priority_color"] = json!(color);
+        }
+
+        let endpoint = format!("/files{}", path);
+        let response = self.client.patch_raw(&endpoint, body).await?;
+        Ok(serde_json::from_value(response)?)
+    }
+
+    /// Delete a file
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - File path to delete
+    /// * `recursive` - If path is a folder, delete recursively
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use files_sdk::{FilesClient, FileHandler};
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = FileHandler::new(client);
+    /// handler.delete_file("/path/to/file.txt", false).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn delete_file(&self, path: &str, recursive: bool) -> Result<()> {
+        let endpoint = if recursive {
+            format!("/files{}?recursive=true", path)
+        } else {
+            format!("/files{}", path)
+        };
+
+        self.client.delete_raw(&endpoint).await?;
+        Ok(())
+    }
+
+    /// Copy a file
+    ///
+    /// This is a convenience method that calls `FileActionHandler::copy_file()`
+    ///
+    /// # Arguments
+    ///
+    /// * `source` - Source file path
+    /// * `destination` - Destination path
+    pub async fn copy_file(&self, source: &str, destination: &str) -> Result<()> {
+        let file_action = FileActionHandler::new(self.client.clone());
+        file_action.copy_file(source, destination).await
+    }
+
+    /// Move a file
+    ///
+    /// This is a convenience method that calls `FileActionHandler::move_file()`
+    ///
+    /// # Arguments
+    ///
+    /// * `source` - Source file path
+    /// * `destination` - Destination path
+    pub async fn move_file(&self, source: &str, destination: &str) -> Result<()> {
+        let file_action = FileActionHandler::new(self.client.clone());
+        file_action.move_file(source, destination).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_handler_creation() {
+        let client = FilesClient::builder().api_key("test-key").build().unwrap();
+        let _handler = FileHandler::new(client);
+    }
+}

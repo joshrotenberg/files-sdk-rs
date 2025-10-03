@@ -1,0 +1,20 @@
+[package]
+name = "files-sdk"
+version = "0.1.0"
+edition = "2024"
+authors = ["Josh Rotenberg <josh@rotenberg.io>"]
+license = "MIT OR Apache-2.0"
+description = "Rust SDK for the Files.com API"
+repository = "https://github.com/joshrotenberg/files-sdk"
+keywords = ["files", "filescom", "api", "storage", "cloud"]
+categories = ["api-bindings", "web-programming"]
+
+[dependencies]
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
