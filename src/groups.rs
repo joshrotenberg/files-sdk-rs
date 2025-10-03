@@ -26,17 +26,17 @@ pub struct GroupEntity {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
 
-    /// Admin user IDs
+    /// Admin user IDs (comma-separated string)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub admin_ids: Option<Vec<i64>>,
+    pub admin_ids: Option<String>,
 
-    /// User IDs in this group
+    /// User IDs in this group (comma-separated string)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_ids: Option<Vec<i64>>,
+    pub user_ids: Option<String>,
 
-    /// Usernames in this group
+    /// Usernames in this group (comma-separated string)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub usernames: Option<Vec<String>>,
+    pub usernames: Option<String>,
 
     /// Allowed IP addresses
     #[serde(skip_serializing_if = "Option::is_none")]

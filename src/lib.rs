@@ -126,6 +126,7 @@ pub mod file_actions;
 pub mod files;
 pub mod folders;
 pub mod groups;
+pub mod permissions;
 pub mod sessions;
 pub mod types;
 pub mod users;
@@ -139,12 +140,14 @@ pub use file_actions::FileActionHandler;
 pub use files::FileHandler;
 pub use folders::FolderHandler;
 pub use groups::GroupHandler;
+pub use permissions::PermissionHandler;
 pub use sessions::SessionHandler;
 pub use users::UserHandler;
 
 // Re-export common types
 pub use api_keys::ApiKeyEntity;
 pub use groups::GroupEntity;
+pub use permissions::PermissionEntity;
 pub use sessions::SessionEntity;
 pub use types::{FileEntity, FileUploadPartEntity, FolderEntity, PaginationInfo};
 pub use users::UserEntity;
