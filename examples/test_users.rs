@@ -2,9 +2,10 @@ use files_sdk::{FilesClient, Result, UserHandler};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let api_key = "faa9da7771d67901eb18f9067323537f31b2ac0a16179c3f7637f2c8448381ba";
+    let api_key =
+        std::env::var("FILES_API_KEY").expect("FILES_API_KEY environment variable not set");
 
-    let client = FilesClient::builder().api_key(api_key).build()?;
+    let client = FilesClient::builder().api_key(&api_key).build()?;
 
     let user_handler = UserHandler::new(client);
 
