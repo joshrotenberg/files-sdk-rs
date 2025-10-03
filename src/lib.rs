@@ -120,10 +120,13 @@
 //! Files.com uses API key authentication via the `X-FilesAPI-Key` header.
 //! API keys can be obtained from the Files.com web interface under Account Settings.
 
+pub mod api_keys;
 pub mod client;
 pub mod file_actions;
 pub mod files;
 pub mod folders;
+pub mod groups;
+pub mod sessions;
 pub mod types;
 pub mod users;
 
@@ -131,12 +134,18 @@ pub mod users;
 pub use client::{FilesClient, FilesClientBuilder};
 
 // Re-export handlers
+pub use api_keys::ApiKeyHandler;
 pub use file_actions::FileActionHandler;
 pub use files::FileHandler;
 pub use folders::FolderHandler;
+pub use groups::GroupHandler;
+pub use sessions::SessionHandler;
 pub use users::UserHandler;
 
 // Re-export common types
+pub use api_keys::ApiKeyEntity;
+pub use groups::GroupEntity;
+pub use sessions::SessionEntity;
 pub use types::{FileEntity, FileUploadPartEntity, FolderEntity, PaginationInfo};
 pub use users::UserEntity;
 
