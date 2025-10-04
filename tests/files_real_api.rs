@@ -50,7 +50,11 @@ async fn test_real_api_file_upload_and_download() {
     match result {
         Ok(file) => {
             println!("Successfully uploaded file: {:?}", file);
-            assert_eq!(file.path, Some(test_path.to_string()));
+            // API returns paths without leading slash
+            assert!(
+                file.path == Some(test_path.to_string())
+                    || file.path == Some(test_path.trim_start_matches('/').to_string())
+            );
 
             // Step 3: Download file
             let download_result = file_handler.download_file(test_path).await;
@@ -58,7 +62,12 @@ async fn test_real_api_file_upload_and_download() {
             match download_result {
                 Ok(downloaded_file) => {
                     println!("Successfully downloaded file: {:?}", downloaded_file);
-                    assert_eq!(downloaded_file.path, Some(test_path.to_string()));
+                    // API returns paths without leading slash
+                    assert!(
+                        downloaded_file.path == Some(test_path.to_string())
+                            || downloaded_file.path
+                                == Some(test_path.trim_start_matches('/').to_string())
+                    );
                 }
                 Err(e) => {
                     eprintln!("Failed to download file: {:?}", e);
@@ -176,9 +185,17 @@ async fn test_real_api_folder_operations() {
             match list_result {
                 Ok((files, _)) => {
                     println!("Listed {} items in /integration-tests", files.len());
-                    let found = files
-                        .iter()
-                        .any(|f| f.path == Some(test_folder.to_string()));
+                    // API may return paths with or without leading slash
+                    let found = files.iter().any(|f| {
+                        f.path == Some(test_folder.to_string())
+                            || f.path == Some(test_folder.trim_start_matches('/').to_string())
+                    });
+                    if !found {
+                        println!(
+                            "Available paths: {:?}",
+                            files.iter().map(|f| &f.path).collect::<Vec<_>>()
+                        );
+                    }
                     assert!(found, "Should find created subfolder in listing");
                 }
                 Err(e) => {
