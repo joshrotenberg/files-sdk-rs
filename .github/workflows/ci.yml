@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -42,11 +42,7 @@ jobs:
         run: cargo test --lib --all-features
 
       - name: Run mock integration tests
-        run: |
-          cargo test --test users_mock
-          cargo test --test groups_mock
-          cargo test --test permissions_mock
-          cargo test --test files_mock
+        run: cargo test --test '*'
 
       - name: Run doc tests
         run: cargo test --doc
@@ -126,7 +122,7 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run real API integration tests
-        if: ${{ secrets.FILES_API_KEY != '' }}
+        if: secrets.FILES_API_KEY != ''
         env:
           FILES_API_KEY: ${{ secrets.FILES_API_KEY }}
-        run: cargo test --features integration-tests --test users_real_api
+        run: cargo test --features integration-tests
