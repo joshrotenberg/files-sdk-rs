@@ -14,10 +14,10 @@ Not yet published to crates.io. Add via git:
 
 ```toml
 [dependencies]
-files-sdk = { git = "https://github.com/joshrotenberg/files-sdk" }
+files-sdk = { git = "https://github.com/joshrotenberg/files-idk-rs" }
 
 # Optional: Enable tracing for HTTP-level debugging
-files-sdk = { git = "https://github.com/joshrotenberg/files-sdk", features = ["tracing"] }
+files-sdk = { git = "https://github.com/joshrotenberg/files-idk-rs", features = ["tracing"] }
 ```
 
 ## Quick Start

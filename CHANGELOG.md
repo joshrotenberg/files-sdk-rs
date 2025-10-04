@@ -38,5 +38,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Module inception issues in test organization
 - Client borrow/move issues in integration tests
 
-[Unreleased]: https://github.com/joshrotenberg/files-sdk/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/joshrotenberg/files-sdk/releases/tag/v0.1.0
+[Unreleased]: https://github.com/joshrotenberg/files-idk-rs/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/joshrotenberg/files-idk-rs/releases/tag/v0.1.0
