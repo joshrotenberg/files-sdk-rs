@@ -1,21 +1,17 @@
-//! Bundle notification configuration
-
-use crate::{FilesClient, PaginationInfo, Result};
+use crate::{Result, client::FilesClient, types::PaginationInfo};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct BundleNotificationEntity {
-    pub id: Option<i64>,
+pub struct ChildSiteManagementPolicyEntity {
     #[serde(flatten)]
     pub data: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone)]
-pub struct BundleNotificationHandler {
+pub struct ChildSiteManagementPolicyHandler {
     client: FilesClient,
 }
 
-impl BundleNotificationHandler {
+impl ChildSiteManagementPolicyHandler {
     pub fn new(client: FilesClient) -> Self {
         Self { client }
     }
@@ -24,18 +20,21 @@ impl BundleNotificationHandler {
         &self,
         cursor: Option<String>,
         per_page: Option<i64>,
-    ) -> Result<(Vec<BundleNotificationEntity>, PaginationInfo)> {
-        let mut endpoint = "/bundle_notifications".to_string();
-        let mut params = Vec::new();
-        if let Some(c) = cursor {
-            params.push(format!("cursor={}", c));
+    ) -> Result<(Vec<ChildSiteManagementPolicyEntity>, PaginationInfo)> {
+        let mut endpoint = "/child_site_management_policies".to_string();
+        let mut query_params = Vec::new();
+
+        if let Some(cursor) = cursor {
+            query_params.push(format!("cursor={}", cursor));
         }
-        if let Some(pp) = per_page {
-            params.push(format!("per_page={}", pp));
+
+        if let Some(per_page) = per_page {
+            query_params.push(format!("per_page={}", per_page));
         }
-        if !params.is_empty() {
+
+        if !query_params.is_empty() {
             endpoint.push('?');
-            endpoint.push_str(&params.join("&"));
+            endpoint.push_str(&query_params.join("&"));
         }
 
         let url = format!("{}{}", self.client.inner.base_url, endpoint);
@@ -47,6 +46,7 @@ impl BundleNotificationHandler {
 
         let headers = response.headers().clone();
         let pagination = PaginationInfo::from_headers(&headers);
+
         let status = response.status();
         if !status.is_success() {
             return Err(crate::FilesError::ApiError {
@@ -54,20 +54,24 @@ impl BundleNotificationHandler {
                 message: response.text().await.unwrap_or_default(),
             });
         }
-        let items: Vec<BundleNotificationEntity> = response.json().await?;
-        Ok((items, pagination))
+
+        let entities: Vec<ChildSiteManagementPolicyEntity> = response.json().await?;
+        Ok((entities, pagination))
     }
 
-    pub async fn get(&self, id: i64) -> Result<BundleNotificationEntity> {
-        let endpoint = format!("/bundle_notifications/{}", id);
+    pub async fn get(&self, id: i64) -> Result<ChildSiteManagementPolicyEntity> {
+        let endpoint = format!("/child_site_management_policies/{}", id);
         let response = self.client.get_raw(&endpoint).await?;
         Ok(serde_json::from_value(response)?)
     }
 
-    pub async fn create(&self, params: serde_json::Value) -> Result<BundleNotificationEntity> {
+    pub async fn create(
+        &self,
+        params: serde_json::Value,
+    ) -> Result<ChildSiteManagementPolicyEntity> {
         let response = self
             .client
-            .post_raw("/bundle_notifications", params)
+            .post_raw("/child_site_management_policies", params)
             .await?;
         Ok(serde_json::from_value(response)?)
     }
@@ -76,25 +80,15 @@ impl BundleNotificationHandler {
         &self,
         id: i64,
         params: serde_json::Value,
-    ) -> Result<BundleNotificationEntity> {
-        let endpoint = format!("/bundle_notifications/{}", id);
+    ) -> Result<ChildSiteManagementPolicyEntity> {
+        let endpoint = format!("/child_site_management_policies/{}", id);
         let response = self.client.patch_raw(&endpoint, params).await?;
         Ok(serde_json::from_value(response)?)
     }
 
     pub async fn delete(&self, id: i64) -> Result<()> {
-        let endpoint = format!("/bundle_notifications/{}", id);
+        let endpoint = format!("/child_site_management_policies/{}", id);
         self.client.delete_raw(&endpoint).await?;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_handler_creation() {
-        let client = FilesClient::builder().api_key("test-key").build().unwrap();
-        let _handler = BundleNotificationHandler::new(client);
     }
 }

@@ -2,7 +2,6 @@
 
 use crate::{FilesClient, PaginationInfo, Result};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct As2StationEntity {

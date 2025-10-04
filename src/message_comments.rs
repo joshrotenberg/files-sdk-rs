@@ -1,41 +1,45 @@
-//! Snapshot management
-
-use crate::{FilesClient, PaginationInfo, Result};
+use crate::{Result, client::FilesClient, types::PaginationInfo};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SnapshotEntity {
-    pub id: Option<i64>,
+pub struct MessageCommentEntity {
     #[serde(flatten)]
     pub data: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone)]
-pub struct SnapshotHandler {
+pub struct MessageCommentHandler {
     client: FilesClient,
 }
 
-impl SnapshotHandler {
+impl MessageCommentHandler {
     pub fn new(client: FilesClient) -> Self {
         Self { client }
     }
 
     pub async fn list(
         &self,
+        user_id: Option<i64>,
         cursor: Option<String>,
         per_page: Option<i64>,
-    ) -> Result<(Vec<SnapshotEntity>, PaginationInfo)> {
-        let mut endpoint = "/snapshots".to_string();
-        let mut params = Vec::new();
-        if let Some(c) = cursor {
-            params.push(format!("cursor={}", c));
+    ) -> Result<(Vec<MessageCommentEntity>, PaginationInfo)> {
+        let mut endpoint = "/message_comments".to_string();
+        let mut query_params = Vec::new();
+
+        if let Some(user_id) = user_id {
+            query_params.push(format!("user_id={}", user_id));
         }
-        if let Some(pp) = per_page {
-            params.push(format!("per_page={}", pp));
+
+        if let Some(cursor) = cursor {
+            query_params.push(format!("cursor={}", cursor));
         }
-        if !params.is_empty() {
+
+        if let Some(per_page) = per_page {
+            query_params.push(format!("per_page={}", per_page));
+        }
+
+        if !query_params.is_empty() {
             endpoint.push('?');
-            endpoint.push_str(&params.join("&"));
+            endpoint.push_str(&query_params.join("&"));
         }
 
         let url = format!("{}{}", self.client.inner.base_url, endpoint);
@@ -47,6 +51,7 @@ impl SnapshotHandler {
 
         let headers = response.headers().clone();
         let pagination = PaginationInfo::from_headers(&headers);
+
         let status = response.status();
         if !status.is_success() {
             return Err(crate::FilesError::ApiError {
@@ -54,40 +59,31 @@ impl SnapshotHandler {
                 message: response.text().await.unwrap_or_default(),
             });
         }
-        let items: Vec<SnapshotEntity> = response.json().await?;
-        Ok((items, pagination))
+
+        let entities: Vec<MessageCommentEntity> = response.json().await?;
+        Ok((entities, pagination))
     }
 
-    pub async fn get(&self, id: i64) -> Result<SnapshotEntity> {
-        let endpoint = format!("/snapshots/{}", id);
+    pub async fn get(&self, id: i64) -> Result<MessageCommentEntity> {
+        let endpoint = format!("/message_comments/{}", id);
         let response = self.client.get_raw(&endpoint).await?;
         Ok(serde_json::from_value(response)?)
     }
 
-    pub async fn create(&self, params: serde_json::Value) -> Result<SnapshotEntity> {
-        let response = self.client.post_raw("/snapshots", params).await?;
+    pub async fn create(&self, params: serde_json::Value) -> Result<MessageCommentEntity> {
+        let response = self.client.post_raw("/message_comments", params).await?;
         Ok(serde_json::from_value(response)?)
     }
 
-    pub async fn update(&self, id: i64, params: serde_json::Value) -> Result<SnapshotEntity> {
-        let endpoint = format!("/snapshots/{}", id);
+    pub async fn update(&self, id: i64, params: serde_json::Value) -> Result<MessageCommentEntity> {
+        let endpoint = format!("/message_comments/{}", id);
         let response = self.client.patch_raw(&endpoint, params).await?;
         Ok(serde_json::from_value(response)?)
     }
 
     pub async fn delete(&self, id: i64) -> Result<()> {
-        let endpoint = format!("/snapshots/{}", id);
+        let endpoint = format!("/message_comments/{}", id);
         self.client.delete_raw(&endpoint).await?;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_handler_creation() {
-        let client = FilesClient::builder().api_key("test-key").build().unwrap();
-        let _handler = SnapshotHandler::new(client);
     }
 }
