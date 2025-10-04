@@ -1,4 +1,5 @@
 //! Real API integration tests for BundleHandler (share links)
+use crate::real::*;
 //!
 //! These tests run against the actual Files.com API and require:
 //! - FILES_API_KEY environment variable to be set
@@ -6,15 +7,9 @@
 //!
 //! These tests create and clean up test bundles.
 
-#![cfg(feature = "integration-tests")]
 
 use files_sdk::{BundleHandler, FileHandler, FilesClient, FolderHandler};
 
-fn get_test_client() -> FilesClient {
-    let api_key = std::env::var("FILES_API_KEY")
-        .expect("FILES_API_KEY environment variable must be set for integration tests");
-    FilesClient::builder().api_key(&api_key).build().unwrap()
-}
 
 #[tokio::test]
 async fn test_real_api_create_and_delete_bundle() {

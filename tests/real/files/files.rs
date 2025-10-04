@@ -2,19 +2,12 @@
 //!
 //! These tests run against the actual Files.com API and require:
 //! - FILES_API_KEY environment variable to be set
-//! - Feature flag: cargo test --features integration-tests --test files_real_api
+//! - Feature flag: cargo test --features integration-tests --test real
 //!
 //! These tests create and clean up test files in /integration-tests/ folder.
 
-#![cfg(feature = "integration-tests")]
-
-use files_sdk::{FileActionHandler, FileHandler, FilesClient, FolderHandler};
-
-fn get_test_client() -> FilesClient {
-    let api_key = std::env::var("FILES_API_KEY")
-        .expect("FILES_API_KEY environment variable must be set for integration tests");
-    FilesClient::builder().api_key(&api_key).build().unwrap()
-}
+use crate::real::*;
+use files_sdk::{FileActionHandler, FileHandler, FolderHandler};
 
 #[tokio::test]
 async fn test_real_api_file_upload_and_download() {
@@ -24,15 +17,14 @@ async fn test_real_api_file_upload_and_download() {
     let folder_handler = FolderHandler::new(client);
 
     // Ensure test folder exists
-    let test_folder = "/integration-tests";
-    let _ = folder_handler.create_folder(test_folder, true).await;
+    ensure_test_folder(&client).await;
 
     // Test file
     let test_path = "/integration-tests/test-upload.txt";
     let test_content = b"Hello from files-sdk integration test!";
 
     // Clean up any existing test file
-    let _ = file_handler.delete_file(test_path, false).await;
+    cleanup_file(&client, test_path).await;
 
     println!("Starting file upload test...");
 
@@ -75,11 +67,8 @@ async fn test_real_api_file_upload_and_download() {
             }
 
             // Clean up
-            let delete_result = file_handler.delete_file(test_path, false).await;
-            match delete_result {
-                Ok(_) => println!("Successfully cleaned up test file"),
-                Err(e) => eprintln!("Failed to clean up test file: {:?}", e),
-            }
+            cleanup_file(&client, test_path).await;
+            println!("Successfully cleaned up test file");
         }
         Err(e) => {
             panic!("Failed to upload file: {:?}", e);

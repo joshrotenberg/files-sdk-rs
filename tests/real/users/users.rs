@@ -1,4 +1,5 @@
 //! Real API integration tests for UserHandler
+use crate::real::*;
 //!
 //! These tests run against the actual Files.com API and require:
 //! - FILES_API_KEY environment variable to be set
@@ -6,7 +7,6 @@
 //!
 //! These tests are read-only and should not modify any data.
 
-#![cfg(feature = "integration-tests")]
 
 use files_sdk::{FilesClient, UserHandler};
 
