@@ -147,6 +147,17 @@ pub mod sessions;
 pub mod site;
 pub mod types;
 pub mod users;
+// Log and monitoring handlers
+pub mod api_request_logs;
+pub mod automation_logs;
+pub mod email_logs;
+pub mod file_migration_logs;
+pub mod ftp_action_logs;
+pub mod outbound_connection_logs;
+pub mod settings_changes;
+pub mod sftp_action_logs;
+pub mod sync_logs;
+pub mod web_dav_action_logs;
 
 // Re-export client types
 pub use client::{FilesClient, FilesClientBuilder};
@@ -178,6 +189,8 @@ pub use sessions::SessionHandler;
 pub use site::SiteHandler;
 pub use users::UserHandler;
 
+// Log and monitoring handlers
+
 // Re-export common types
 pub use api_keys::ApiKeyEntity;
 pub use automations::AutomationEntity;
@@ -202,6 +215,8 @@ pub use sessions::SessionEntity;
 pub use site::{SiteEntity, SiteUsageEntity};
 pub use types::{FileEntity, FileUploadPartEntity, FolderEntity, PaginationInfo};
 pub use users::UserEntity;
+
+// Log and monitoring entities
 
 // Error handling
 use thiserror::Error;
@@ -256,3 +271,23 @@ pub enum FilesError {
 
 /// Result type for Files.com operations
 pub type Result<T> = std::result::Result<T, FilesError>;
+pub use api_request_logs::ApiRequestLogEntity;
+pub use api_request_logs::ApiRequestLogHandler;
+pub use automation_logs::AutomationLogEntity;
+pub use automation_logs::AutomationLogHandler;
+pub use email_logs::EmailLogEntity;
+pub use email_logs::EmailLogHandler;
+pub use file_migration_logs::FileMigrationLogEntity;
+pub use file_migration_logs::FileMigrationLogHandler;
+pub use ftp_action_logs::FtpActionLogEntity;
+pub use ftp_action_logs::FtpActionLogHandler;
+pub use outbound_connection_logs::OutboundConnectionLogEntity;
+pub use outbound_connection_logs::OutboundConnectionLogHandler;
+pub use settings_changes::SettingsChangeEntity;
+pub use settings_changes::SettingsChangeHandler;
+pub use sftp_action_logs::SftpActionLogEntity;
+pub use sftp_action_logs::SftpActionLogHandler;
+pub use sync_logs::SyncLogEntity;
+pub use sync_logs::SyncLogHandler;
+pub use web_dav_action_logs::WebDavActionLogEntity;
+pub use web_dav_action_logs::WebDavActionLogHandler;
