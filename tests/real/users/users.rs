@@ -1,5 +1,4 @@
 //! Real API integration tests for UserHandler
-use crate::real::*;
 //!
 //! These tests run against the actual Files.com API and require:
 //! - FILES_API_KEY environment variable to be set
@@ -7,16 +6,12 @@ use crate::real::*;
 //!
 //! These tests are read-only and should not modify any data.
 
-
+use crate::real::*;
 use files_sdk::{FilesClient, UserHandler};
 
 #[tokio::test]
 async fn test_real_api_list_users() {
-    let api_key = std::env::var("FILES_API_KEY")
-        .expect("FILES_API_KEY environment variable must be set for integration tests");
-
-    let client = FilesClient::builder().api_key(&api_key).build().unwrap();
-
+    let client = get_test_client();
     let handler = UserHandler::new(client);
 
     // List users - this is a read-only operation
@@ -51,11 +46,7 @@ async fn test_real_api_list_users() {
 
 #[tokio::test]
 async fn test_real_api_get_user_by_id() {
-    let api_key = std::env::var("FILES_API_KEY")
-        .expect("FILES_API_KEY environment variable must be set for integration tests");
-
-    let client = FilesClient::builder().api_key(&api_key).build().unwrap();
-
+    let client = get_test_client();
     let handler = UserHandler::new(client);
 
     // First, list users to get a valid user ID

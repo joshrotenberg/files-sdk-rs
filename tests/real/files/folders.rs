@@ -7,7 +7,7 @@ use files_sdk::{FileHandler, FilesError, FolderHandler};
 async fn test_folder_list_with_pagination() {
     let client = get_test_client();
     let folder_handler = FolderHandler::new(client.clone());
-    let file_handler = FileHandler::new(client);
+    let file_handler = FileHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -28,7 +28,7 @@ async fn test_folder_list_with_pagination() {
 
     // List with small page size
     let list_result = folder_handler
-        .list_folder(test_folder, None, Some(2)) // 2 items per page
+        .list_folder(test_folder, Some(2), None) // 2 items per page
         .await;
 
     match list_result {
@@ -41,7 +41,7 @@ async fn test_folder_list_with_pagination() {
                 println!("Testing next page with cursor: {}", next_cursor);
 
                 let next_page = folder_handler
-                    .list_folder(test_folder, Some(&next_cursor), Some(2))
+                    .list_folder(test_folder, Some(2), Some(next_cursor))
                     .await;
 
                 match next_page {
@@ -70,7 +70,7 @@ async fn test_folder_list_with_pagination() {
 async fn test_folder_search_functionality() {
     let client = get_test_client();
     let folder_handler = FolderHandler::new(client.clone());
-    let file_handler = FileHandler::new(client);
+    let file_handler = FileHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -97,7 +97,7 @@ async fn test_folder_search_functionality() {
 
     // Search for files containing "important"
     let search_result = folder_handler
-        .search(test_folder, Some("important"), None, None)
+        .search_folder(test_folder, "important", None)
         .await;
 
     match search_result {
@@ -128,7 +128,7 @@ async fn test_folder_search_functionality() {
 #[tokio::test]
 async fn test_folder_create_with_mkdir_parents() {
     let client = get_test_client();
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -179,7 +179,7 @@ async fn test_folder_create_with_mkdir_parents() {
 async fn test_folder_delete_recursive() {
     let client = get_test_client();
     let folder_handler = FolderHandler::new(client.clone());
-    let file_handler = FileHandler::new(client);
+    let file_handler = FileHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -247,7 +247,7 @@ async fn test_folder_delete_recursive() {
 #[tokio::test]
 async fn test_folder_list_empty_folder() {
     let client = get_test_client();
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -281,7 +281,7 @@ async fn test_folder_list_empty_folder() {
 #[tokio::test]
 async fn test_folder_not_found_error() {
     let client = get_test_client();
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     let nonexistent = "/integration-tests/does-not-exist";
 
@@ -302,7 +302,7 @@ async fn test_folder_not_found_error() {
 #[tokio::test]
 async fn test_folder_name_conflict() {
     let client = get_test_client();
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -341,7 +341,7 @@ async fn test_folder_name_conflict() {
 #[tokio::test]
 async fn test_folder_with_special_characters() {
     let client = get_test_client();
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 

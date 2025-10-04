@@ -39,7 +39,7 @@ async fn test_file_delete_with_recursive_flag() {
 #[tokio::test]
 async fn test_file_not_found_error() {
     let client = get_test_client();
-    let file_handler = FileHandler::new(client);
+    let file_handler = FileHandler::new(client.clone());
 
     let nonexistent_file = "/integration-tests/does-not-exist.txt";
 
@@ -60,7 +60,7 @@ async fn test_file_not_found_error() {
 #[tokio::test]
 async fn test_file_with_special_characters() {
     let client = get_test_client();
-    let file_handler = FileHandler::new(client);
+    let file_handler = FileHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -110,7 +110,7 @@ async fn test_file_with_special_characters() {
 #[tokio::test]
 async fn test_file_update_metadata() {
     let client = get_test_client();
-    let file_handler = FileHandler::new(client);
+    let file_handler = FileHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -129,13 +129,12 @@ async fn test_file_update_metadata() {
     println!("Testing metadata update");
 
     // Update with custom metadata
-    let custom_metadata = serde_json::json!({
-        "test_key": "test_value",
-        "uploaded_by": "integration_test"
-    });
+    let mut custom_metadata = std::collections::HashMap::new();
+    custom_metadata.insert("test_key".to_string(), "test_value".to_string());
+    custom_metadata.insert("uploaded_by".to_string(), "integration_test".to_string());
 
     let update_result = file_handler
-        .update_file(test_file, Some(&custom_metadata), None, None)
+        .update_file(test_file, Some(custom_metadata), None, None)
         .await;
 
     match update_result {
@@ -159,7 +158,7 @@ async fn test_file_update_metadata() {
 async fn test_file_copy_to_different_folder() {
     let client = get_test_client();
     let file_handler = FileHandler::new(client.clone());
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -214,7 +213,7 @@ async fn test_file_copy_to_different_folder() {
 #[tokio::test]
 async fn test_file_move_renames_file() {
     let client = get_test_client();
-    let file_handler = FileHandler::new(client);
+    let file_handler = FileHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -268,7 +267,7 @@ async fn test_file_move_renames_file() {
 #[tokio::test]
 async fn test_file_conflict_on_copy() {
     let client = get_test_client();
-    let file_handler = FileHandler::new(client);
+    let file_handler = FileHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -316,7 +315,7 @@ async fn test_file_conflict_on_copy() {
 async fn test_deep_nested_folder_path() {
     let client = get_test_client();
     let file_handler = FileHandler::new(client.clone());
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 

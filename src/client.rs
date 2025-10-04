@@ -12,6 +12,9 @@ use serde::Serialize;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(feature = "tracing")]
+use tracing::{debug, error, instrument, warn};
+
 /// Builder for constructing a FilesClient with custom configuration
 ///
 /// Provides a fluent interface for configuring API credentials, base URL, timeouts,
@@ -159,8 +162,12 @@ impl FilesClient {
     /// # Errors
     ///
     /// Returns an error if the request fails or returns a non-success status code
+    #[cfg_attr(feature = "tracing", instrument(skip(self), fields(method = "GET")))]
     pub async fn get_raw(&self, path: &str) -> Result<serde_json::Value> {
         let url = format!("{}{}", self.inner.base_url, path);
+
+        #[cfg(feature = "tracing")]
+        debug!("Making GET request to {}", path);
 
         let response = self
             .inner
@@ -169,6 +176,9 @@ impl FilesClient {
             .header("X-FilesAPI-Key", &self.inner.api_key)
             .send()
             .await?;
+
+        #[cfg(feature = "tracing")]
+        debug!("GET response status: {}", response.status());
 
         self.handle_response(response).await
     }
@@ -183,8 +193,15 @@ impl FilesClient {
     /// # Errors
     ///
     /// Returns an error if the request fails or returns a non-success status code
+    #[cfg_attr(
+        feature = "tracing",
+        instrument(skip(self, body), fields(method = "POST"))
+    )]
     pub async fn post_raw<T: Serialize>(&self, path: &str, body: T) -> Result<serde_json::Value> {
         let url = format!("{}{}", self.inner.base_url, path);
+
+        #[cfg(feature = "tracing")]
+        debug!("Making POST request to {}", path);
 
         let response = self
             .inner
@@ -194,6 +211,9 @@ impl FilesClient {
             .json(&body)
             .send()
             .await?;
+
+        #[cfg(feature = "tracing")]
+        debug!("POST response status: {}", response.status());
 
         self.handle_response(response).await
     }
@@ -208,8 +228,15 @@ impl FilesClient {
     /// # Errors
     ///
     /// Returns an error if the request fails or returns a non-success status code
+    #[cfg_attr(
+        feature = "tracing",
+        instrument(skip(self, body), fields(method = "PATCH"))
+    )]
     pub async fn patch_raw<T: Serialize>(&self, path: &str, body: T) -> Result<serde_json::Value> {
         let url = format!("{}{}", self.inner.base_url, path);
+
+        #[cfg(feature = "tracing")]
+        debug!("Making PATCH request to {}", path);
 
         let response = self
             .inner
@@ -219,6 +246,9 @@ impl FilesClient {
             .json(&body)
             .send()
             .await?;
+
+        #[cfg(feature = "tracing")]
+        debug!("PATCH response status: {}", response.status());
 
         self.handle_response(response).await
     }
@@ -232,8 +262,12 @@ impl FilesClient {
     /// # Errors
     ///
     /// Returns an error if the request fails or returns a non-success status code
+    #[cfg_attr(feature = "tracing", instrument(skip(self), fields(method = "DELETE")))]
     pub async fn delete_raw(&self, path: &str) -> Result<serde_json::Value> {
         let url = format!("{}{}", self.inner.base_url, path);
+
+        #[cfg(feature = "tracing")]
+        debug!("Making DELETE request to {}", path);
 
         let response = self
             .inner
@@ -242,6 +276,9 @@ impl FilesClient {
             .header("X-FilesAPI-Key", &self.inner.api_key)
             .send()
             .await?;
+
+        #[cfg(feature = "tracing")]
+        debug!("DELETE response status: {}", response.status());
 
         self.handle_response(response).await
     }
@@ -280,6 +317,8 @@ impl FilesClient {
         if status.is_success() {
             // Handle 204 No Content
             if status.as_u16() == 204 {
+                #[cfg(feature = "tracing")]
+                debug!("Received 204 No Content response");
                 return Ok(serde_json::Value::Null);
             }
 
@@ -288,6 +327,13 @@ impl FilesClient {
         } else {
             let status_code = status.as_u16();
             let error_body = response.text().await.unwrap_or_default();
+
+            #[cfg(feature = "tracing")]
+            warn!(
+                status_code = status_code,
+                error_body = %error_body,
+                "API request failed"
+            );
 
             // Try to parse error message from JSON
             let message = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&error_body) {
@@ -300,7 +346,7 @@ impl FilesClient {
                 error_body
             };
 
-            Err(match status_code {
+            let error = match status_code {
                 400 => FilesError::BadRequest { message },
                 401 => FilesError::AuthenticationFailed { message },
                 403 => FilesError::Forbidden { message },
@@ -316,7 +362,12 @@ impl FilesClient {
                     code: status_code,
                     message,
                 },
-            })
+            };
+
+            #[cfg(feature = "tracing")]
+            error!(error = ?error, "Returning error to caller");
+
+            Err(error)
         }
     }
 }
