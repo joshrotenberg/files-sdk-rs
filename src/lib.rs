@@ -147,6 +147,18 @@ pub mod sessions;
 pub mod site;
 pub mod types;
 pub mod users;
+// Advanced handlers
+pub mod as2_partners;
+pub mod as2_stations;
+pub mod bundle_notifications;
+pub mod clickwraps;
+pub mod form_field_sets;
+pub mod gpg_keys;
+pub mod sftp_host_keys;
+pub mod share_groups;
+pub mod siem_http_destinations;
+pub mod snapshots;
+
 // Log and monitoring handlers
 pub mod api_request_logs;
 pub mod automation_logs;
@@ -271,7 +283,31 @@ pub enum FilesError {
 
 /// Result type for Files.com operations
 pub type Result<T> = std::result::Result<T, FilesError>;
+// Advanced entities
+pub use as2_partners::As2PartnerEntity;
+pub use as2_stations::As2StationEntity;
+pub use bundle_notifications::BundleNotificationEntity;
+pub use clickwraps::ClickwrapEntity;
+pub use form_field_sets::FormFieldSetEntity;
+pub use gpg_keys::GpgKeyEntity;
+pub use sftp_host_keys::SftpHostKeyEntity;
+pub use share_groups::ShareGroupEntity;
+pub use siem_http_destinations::SiemHttpDestinationEntity;
+pub use snapshots::SnapshotEntity;
+
 pub use api_request_logs::ApiRequestLogEntity;
+// Advanced handlers
+pub use as2_partners::As2PartnerHandler;
+pub use as2_stations::As2StationHandler;
+pub use bundle_notifications::BundleNotificationHandler;
+pub use clickwraps::ClickwrapHandler;
+pub use form_field_sets::FormFieldSetHandler;
+pub use gpg_keys::GpgKeyHandler;
+pub use sftp_host_keys::SftpHostKeyHandler;
+pub use share_groups::ShareGroupHandler;
+pub use siem_http_destinations::SiemHttpDestinationHandler;
+pub use snapshots::SnapshotHandler;
+
 pub use api_request_logs::ApiRequestLogHandler;
 pub use automation_logs::AutomationLogEntity;
 pub use automation_logs::AutomationLogHandler;
