@@ -122,7 +122,8 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run real API integration tests
-        if: secrets.FILES_API_KEY != ''
+        # Only run if FILES_API_KEY secret is configured
+        if: ${{ secrets.FILES_API_KEY }}
         env:
           FILES_API_KEY: ${{ secrets.FILES_API_KEY }}
         run: cargo test --features integration-tests
