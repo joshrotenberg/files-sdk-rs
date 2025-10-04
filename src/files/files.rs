@@ -10,7 +10,9 @@
 //! 1. Call `FileActionHandler::begin_upload()` to get upload URLs
 //! 2. Use this handler's `upload_file()` to complete the upload
 
-use crate::{FileActionHandler, FileEntity, FilesClient, Result};
+use crate::files::FileActionHandler;
+use crate::types::FileEntity;
+use crate::{FilesClient, Result};
 use serde_json::json;
 use std::collections::HashMap;
 
