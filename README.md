@@ -1,23 +1,47 @@
 # files-sdk
 
+[![Crates.io](https://img.shields.io/crates/v/files-sdk.svg)](https://crates.io/crates/files-sdk)
+[![Documentation](https://docs.rs/files-sdk/badge.svg)](https://docs.rs/files-sdk)
+[![License](https://img.shields.io/crates/l/files-sdk.svg)](https://github.com/joshrotenberg/files-idk-rs#license)
+[![CI](https://github.com/joshrotenberg/files-idk-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/joshrotenberg/files-idk-rs/actions/workflows/ci.yml)
+[![Downloads](https://img.shields.io/crates/d/files-sdk.svg)](https://crates.io/crates/files-sdk)
+[![Rust Version](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org)
+
 Rust SDK for the [Files.com](https://files.com) REST API.
 
-> **Status**: 🚧 Alpha - Full API coverage (288 endpoints), core functionality tested
+> **Status**: Alpha - Full API coverage (288 endpoints), core functionality tested
 
 ## Overview
 
 Comprehensive, idiomatic Rust SDK for Files.com cloud storage platform. Provides type-safe, async operations across the entire Files.com API including file operations, user management, sharing, automation, and administration.
 
+### Highlights
+
+- **Complete Coverage** - All 288 API endpoints implemented across 90+ handlers
+- **Idiomatic Rust** - Builder patterns, strong typing, and Result-based error handling
+- **Async First** - Built on tokio for high-performance async I/O
+- **Type Safe** - Leverages Rust's type system to catch errors at compile time
+- **Well Tested** - 56 integration tests, 177 mock tests, 52 unit tests
+- **Modular Design** - Domain-organized modules for easy navigation
+- **Observable** - Optional tracing support for debugging HTTP requests
+
 ## Installation
 
-Not yet published to crates.io. Add via git:
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+files-sdk = "0.1"
+
+# Optional: Enable tracing for HTTP-level debugging
+files-sdk = { version = "0.1", features = ["tracing"] }
+```
+
+Or install from git:
 
 ```toml
 [dependencies]
 files-sdk = { git = "https://github.com/joshrotenberg/files-idk-rs" }
-
-# Optional: Enable tracing for HTTP-level debugging
-files-sdk = { git = "https://github.com/joshrotenberg/files-idk-rs", features = ["tracing"] }
 ```
 
 ## Quick Start
