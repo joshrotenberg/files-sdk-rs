@@ -2,46 +2,16 @@
 
 [![Crates.io](https://img.shields.io/crates/v/files-sdk.svg)](https://crates.io/crates/files-sdk)
 [![Documentation](https://docs.rs/files-sdk/badge.svg)](https://docs.rs/files-sdk)
-[![License](https://img.shields.io/crates/l/files-sdk.svg)](https://github.com/joshrotenberg/files-idk-rs#license)
-[![CI](https://github.com/joshrotenberg/files-idk-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/joshrotenberg/files-idk-rs/actions/workflows/ci.yml)
-[![Downloads](https://img.shields.io/crates/d/files-sdk.svg)](https://crates.io/crates/files-sdk)
-[![Rust Version](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org)
+[![License](https://img.shields.io/crates/l/files-sdk.svg)](https://github.com/joshrotenberg/files-sdk-rs#license)
+[![CI](https://github.com/joshrotenberg/files-sdk-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/joshrotenberg/files-sdk-rs/actions/workflows/ci.yml)
 
-Rust SDK for the [Files.com](https://files.com) REST API.
-
-> **Status**: Alpha - Full API coverage (288 endpoints), core functionality tested
-
-## Overview
-
-Comprehensive, idiomatic Rust SDK for Files.com cloud storage platform. Provides type-safe, async operations across the entire Files.com API including file operations, user management, sharing, automation, and administration.
-
-### Highlights
-
-- **Complete Coverage** - All 288 API endpoints implemented across 90+ handlers
-- **Idiomatic Rust** - Builder patterns, strong typing, and Result-based error handling
-- **Async First** - Built on tokio for high-performance async I/O
-- **Type Safe** - Leverages Rust's type system to catch errors at compile time
-- **Well Tested** - 56 integration tests, 177 mock tests, 52 unit tests
-- **Modular Design** - Domain-organized modules for easy navigation
-- **Observable** - Optional tracing support for debugging HTTP requests
+Rust SDK for the [Files.com](https://files.com) API - 288 endpoints, fully async, type-safe.
 
 ## Installation
-
-Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
 files-sdk = "0.1"
-
-# Optional: Enable tracing for HTTP-level debugging
-files-sdk = { version = "0.1", features = ["tracing"] }
-```
-
-Or install from git:
-
-```toml
-[dependencies]
-files-sdk = { git = "https://github.com/joshrotenberg/files-idk-rs" }
 ```
 
 ## Quick Start
@@ -56,166 +26,188 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     let file_handler = FileHandler::new(client);
+    
+    // Upload a file
     let data = b"Hello, Files.com!";
+    file_handler.upload_file("/path/to/file.txt", data).await?;
     
-    let result = file_handler
-        .upload_file("/path/to/file.txt", data)
-        .await?;
+    // Download a file
+    let content = file_handler.download("/path/to/file.txt").await?;
     
-    println!("Uploaded: {:?}", result.path);
+    // List folder contents
+    let (files, _pagination) = file_handler.list_folder("/", None, Some(100)).await?;
+    for file in files {
+        println!("{}: {} bytes", file.path, file.size);
+    }
+    
     Ok(())
 }
 ```
 
-## Features
+## Examples
 
-### Core Capabilities
-- ✅ **Complete API Coverage** - All 288 endpoints across 90+ handlers
-- ✅ **Type Safety** - Full Rust type system with Result-based error handling
-- ✅ **Async/Await** - Built on tokio for efficient async operations
-- ✅ **Builder Pattern** - Ergonomic client configuration
-- ✅ **Comprehensive Errors** - 14 error types matching HTTP status codes
-- ✅ **Pagination** - Cursor-based pagination support
-- ✅ **Tracing** - Optional HTTP-level debugging (feature: `tracing`)
+### File Operations
 
-### API Modules
+```rust
+use files_sdk::{FilesClient, files::FileHandler};
 
-**Files** (`files::`)
-- File upload/download, copy, move, delete
-- Folder operations with recursive support
-- File comments and reactions
-- File migrations
+let client = FilesClient::builder().api_key("key").build()?;
+let handler = FileHandler::new(client);
 
-**Users** (`users::`)
-- User management, groups, permissions
-- API keys, sessions, public keys
-- Group memberships
+// Upload with automatic parent directory creation
+handler.upload_file_with_options(
+    "/reports/2024/summary.pdf",
+    data,
+    true  // mkdir_parents
+).await?;
 
-**Sharing** (`sharing::`)
-- Bundles (share links)
-- File requests, inbox uploads
-- Bundle notifications and recipients
+// Copy file
+handler.copy("/original.txt", "/backup.txt").await?;
 
-**Automation** (`automation::`)
-- Automations and automation runs
-- Behaviors (webhooks, auto-encrypt)
-- Remote servers and syncs
+// Move file
+handler.move_file("/old/path.txt", "/new/path.txt").await?;
 
-**Admin** (`admin::`)
-- Site settings and configuration
-- History, invoices, payments
-- Usage statistics
+// Delete file
+handler.delete("/unwanted.txt").await?;
+```
 
-**Logs** (`logs::`)
-- API request logs, SFTP/FTP action logs
-- Automation logs, sync logs
-- Settings change tracking
+### User Management
 
-**Messages** (`messages::`)
-- Messages and notifications
-- Notification exports
+```rust
+use files_sdk::{FilesClient, users::UserHandler};
 
-**Storage** (`storage::`)
-- Projects, snapshots, locks
-- File priorities
+let client = FilesClient::builder().api_key("key").build()?;
+let handler = UserHandler::new(client);
 
-**Security** (`security::`)
-- GPG keys, SFTP host keys
-- Clickwraps
+// List users with pagination
+let (users, pagination) = handler.list(None, Some(50)).await?;
 
-**AS2** (`as2::`)
-- AS2 stations, partners, keys
-- Incoming/outgoing messages
+// Get specific user
+let user = handler.get(123).await?;
 
-**Advanced** (`advanced::`)
-- Form field sets, share groups
-- SIEM HTTP destinations
+// Create user
+let new_user = handler.create("user@example.com", "username", None).await?;
 
-### Optional Tracing
+// Update user
+handler.update(123, Some("new@example.com"), None).await?;
+```
 
-Enable detailed HTTP debugging:
+### File Sharing
+
+```rust
+use files_sdk::{FilesClient, sharing::BundleHandler};
+
+let client = FilesClient::builder().api_key("key").build()?;
+let handler = BundleHandler::new(client);
+
+// Create share link
+let bundle = handler.create(
+    vec!["/reports/Q4.pdf".to_string()],
+    None,  // password
+    Some(7)  // expires in 7 days
+).await?;
+
+println!("Share URL: {}", bundle.url);
+
+// List all bundles
+let (bundles, _) = handler.list(None, Some(100)).await?;
+```
+
+### Automation
+
+```rust
+use files_sdk::{FilesClient, automation::AutomationHandler};
+
+let client = FilesClient::builder().api_key("key").build()?;
+let handler = AutomationHandler::new(client);
+
+// Create automation
+let automation = handler.create(
+    "folder_sync",  // automation type
+    Some("/sync/*"),  // path
+    None  // additional options
+).await?;
+
+// List automations
+let (automations, _) = handler.list(None, Some(50), None).await?;
+```
+
+### Error Handling
+
+```rust
+use files_sdk::{FilesClient, FilesError, files::FileHandler};
+
+let client = FilesClient::builder().api_key("key").build()?;
+let handler = FileHandler::new(client);
+
+match handler.download("/missing.txt").await {
+    Ok(content) => println!("Downloaded {} bytes", content.len()),
+    Err(FilesError::NotFound { message }) => {
+        eprintln!("File not found: {}", message);
+    }
+    Err(FilesError::AuthenticationFailed { message }) => {
+        eprintln!("Auth failed: {}", message);
+    }
+    Err(FilesError::RateLimited { message }) => {
+        eprintln!("Rate limited: {}", message);
+    }
+    Err(e) => eprintln!("Error: {}", e),
+}
+```
+
+### Tracing (Optional)
+
+Enable HTTP-level debugging:
+
+```toml
+[dependencies]
+files-sdk = { version = "0.1", features = ["tracing"] }
+tracing-subscriber = "0.3"
+```
 
 ```rust
 use files_sdk::{FilesClient, files::FileHandler};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter("files_sdk=debug")
         .init();
 
-    let client = FilesClient::builder()
-        .api_key("your-api-key")
-        .build()?;
-
-    // All HTTP requests logged
+    let client = FilesClient::builder().api_key("key").build()?;
     let handler = FileHandler::new(client);
+    
+    // All HTTP requests/responses logged
     handler.upload_file("/test.txt", b"data").await?;
     
     Ok(())
 }
 ```
 
-Control verbosity:
 ```bash
 RUST_LOG=files_sdk=debug cargo run
-RUST_LOG=files_sdk=trace cargo run
 ```
 
-## Architecture
+## API Coverage
 
-**Domain-Driven Organization**
-```
-files_sdk::
-├── files::       File and folder operations
-├── users::       User and access management
-├── sharing::     Bundles and file requests
-├── automation::  Automations and behaviors
-├── admin::       Site administration
-├── logs::        Activity logging
-├── messages::    Notifications
-├── storage::     Projects and snapshots
-├── security::    Keys and authentication
-├── as2::         AS2 protocol support
-└── advanced::    Advanced features
-```
+| Module | Endpoints | Description |
+|--------|-----------|-------------|
+| `files::` | 50+ | File upload/download, folders, comments |
+| `users::` | 40+ | Users, groups, permissions, API keys |
+| `sharing::` | 30+ | Bundles, file requests, inbox uploads |
+| `automation::` | 25+ | Automations, behaviors, webhooks |
+| `admin::` | 20+ | Site settings, history, invoices |
+| `logs::` | 30+ | API logs, SFTP logs, audit trails |
+| `messages::` | 10+ | Notifications, message exports |
+| `storage::` | 15+ | Projects, snapshots, locks |
+| `security::` | 10+ | GPG keys, SFTP host keys |
+| `as2::` | 40+ | AS2 stations, partners, messages |
+| `advanced::` | 28+ | Form fields, share groups, SIEM |
 
-**Low-Level API** - Direct handler access for full control
-```rust
-use files_sdk::{FilesClient, files::FileHandler};
+**Total: 288 endpoints across 90+ handlers**
 
-let client = FilesClient::builder().api_key("key").build()?;
-let handler = FileHandler::new(client);
-handler.upload_file("/path", data).await?;
-```
+## Error Types
 
-## Testing
-
-**56 Integration Tests** across core modules:
-- Files: 38 tests (upload, download, folders, comments)
-- Users: 12 tests (users, groups, API keys, sessions)
-- Sharing: 3 tests (bundles)
-- Admin: 2 tests (site settings)
-- Automation: 4 tests (automations, behaviors)
-
-**177 Mock Tests** providing comprehensive unit coverage
-
-Run tests:
-```bash
-# Unit tests
-cargo test --lib
-
-# Mock tests
-cargo test --test mock
-
-# Integration tests (requires FILES_API_KEY)
-FILES_API_KEY=your_key cargo test --test real --features integration-tests
-```
-
-## Error Handling
-
-Comprehensive error types:
 ```rust
 pub enum FilesError {
     BadRequest { message: String },           // 400
@@ -235,31 +227,18 @@ pub enum FilesError {
 }
 ```
 
-## Development Status
+## Testing
 
-### ✅ Complete
-- Full API coverage (288 endpoints, 90 handlers)
-- Type-safe client with builder pattern
-- Comprehensive error handling
-- Pagination support
-- Integration test framework
-- Optional tracing
-- Mock test suite
+```bash
+# Unit tests
+cargo test --lib
 
-### 🚧 In Progress
-- Files.com account for real API testing
-- Performance optimization
-- Additional examples
+# Mock tests
+cargo test --test mock
 
-### 📋 Planned
-- High-level convenience APIs
-- Retry logic with exponential backoff
-- crates.io publication
-- Complete documentation
-
-## Contributing
-
-This SDK is in active development. Contributions welcome!
+# Integration tests (requires FILES_API_KEY)
+FILES_API_KEY=your_key cargo test --test real --features integration-tests
+```
 
 ## License
 
