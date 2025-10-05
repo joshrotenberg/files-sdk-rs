@@ -5,7 +5,7 @@ edition = "2024"
 authors = ["Josh Rotenberg <josh@rotenberg.io>"]
 license = "MIT OR Apache-2.0"
 description = "Rust SDK for the Files.com API"
-repository = "https://github.com/joshrotenberg/files-sdk"
+repository = "https://github.com/joshrotenberg/files-idk-rs"
 keywords = ["files", "filescom", "api", "storage", "cloud"]
 categories = ["api-bindings", "web-programming"]
 
@@ -15,11 +15,15 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"
 tokio = { version = "1", features = ["full"] }
+tracing = { version = "0.1", optional = true }
 url = "2.5.7"
 
 [dev-dependencies]
 tokio-test = "0.4"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 wiremock = "0.6"
 
 [features]
+default = []
 integration-tests = []
+tracing = ["dep:tracing"]

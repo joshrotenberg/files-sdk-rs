@@ -14,7 +14,7 @@ async fn test_real_api_file_upload_and_download() {
     let client = get_test_client();
     let file_handler = FileHandler::new(client.clone());
     let file_action_handler = FileActionHandler::new(client.clone());
-    let folder_handler = FolderHandler::new(client);
+    let _folder_handler = FolderHandler::new(client.clone());
 
     // Ensure test folder exists
     ensure_test_folder(&client).await;
@@ -80,7 +80,7 @@ async fn test_real_api_file_upload_and_download() {
 async fn test_real_api_file_operations() {
     let client = get_test_client();
     let file_handler = FileHandler::new(client.clone());
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     // Ensure test folder exists
     let test_folder = "/integration-tests";
@@ -152,7 +152,7 @@ async fn test_real_api_file_operations() {
 #[tokio::test]
 async fn test_real_api_folder_operations() {
     let client = get_test_client();
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     let test_folder = "/integration-tests/subfolder-test";
 
@@ -209,7 +209,7 @@ async fn test_real_api_folder_operations() {
 async fn test_real_api_large_file_upload() {
     let client = get_test_client();
     let file_handler = FileHandler::new(client.clone());
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     // Ensure test folder exists
     let test_folder = "/integration-tests";

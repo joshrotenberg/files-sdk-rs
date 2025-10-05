@@ -1,3 +1,8 @@
 //! Real API integration tests for user management
 
-pub mod users;
+mod api_keys;
+mod groups;
+mod sessions;
+
+#[allow(clippy::module_inception)]
+mod users;

@@ -1,5 +1,4 @@
 //! Real API integration tests for UserHandler
-use crate::real::*;
 //!
 //! These tests run against the actual Files.com API and require:
 //! - FILES_API_KEY environment variable to be set
@@ -7,16 +6,12 @@ use crate::real::*;
 //!
 //! These tests are read-only and should not modify any data.
 
-
+use crate::real::*;
 use files_sdk::{FilesClient, UserHandler};
 
 #[tokio::test]
 async fn test_real_api_list_users() {
-    let api_key = std::env::var("FILES_API_KEY")
-        .expect("FILES_API_KEY environment variable must be set for integration tests");
-
-    let client = FilesClient::builder().api_key(&api_key).build().unwrap();
-
+    let client = get_test_client();
     let handler = UserHandler::new(client);
 
     // List users - this is a read-only operation
@@ -51,11 +46,7 @@ async fn test_real_api_list_users() {
 
 #[tokio::test]
 async fn test_real_api_get_user_by_id() {
-    let api_key = std::env::var("FILES_API_KEY")
-        .expect("FILES_API_KEY environment variable must be set for integration tests");
-
-    let client = FilesClient::builder().api_key(&api_key).build().unwrap();
-
+    let client = get_test_client();
     let handler = UserHandler::new(client);
 
     // First, list users to get a valid user ID
@@ -110,6 +101,83 @@ async fn test_real_api_authentication_error() {
         }
         Ok(_) => {
             panic!("Should have failed with invalid API key");
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_list_users_with_pagination() {
+    let client = get_test_client();
+    let handler = UserHandler::new(client);
+
+    println!("Testing user list pagination");
+
+    // Get first page with small page size
+    let (first_page, pagination) = handler
+        .list(None, Some(2))
+        .await
+        .expect("Should list users");
+
+    println!("First page: {} users", first_page.len());
+
+    // If there's a next cursor, fetch next page
+    if let Some(next_cursor) = pagination.cursor_next {
+        println!("Fetching next page with cursor: {}", next_cursor);
+
+        let (second_page, _) = handler
+            .list(Some(next_cursor), Some(2))
+            .await
+            .expect("Should list next page");
+
+        println!("Second page: {} users", second_page.len());
+        assert!(!second_page.is_empty(), "Second page should have users");
+    } else {
+        println!("No pagination available (less than 2 users)");
+    }
+}
+
+#[tokio::test]
+async fn test_get_nonexistent_user() {
+    let client = get_test_client();
+    let handler = UserHandler::new(client);
+
+    println!("Testing get nonexistent user");
+
+    // Try to get a user with an ID that probably doesn't exist
+    let result = handler.get(999999999).await;
+
+    match result {
+        Err(files_sdk::FilesError::NotFound { .. }) => {
+            println!("Correctly received NotFound error");
+        }
+        Err(e) => {
+            println!("Got error (acceptable): {:?}", e);
+        }
+        Ok(user) => {
+            println!("Unexpectedly found user: {:?}", user);
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_list_users_empty_page() {
+    let client = get_test_client();
+    let handler = UserHandler::new(client);
+
+    println!("Testing list with very large per_page");
+
+    // Request a large number per page
+    let result = handler.list(None, Some(1000)).await;
+
+    match result {
+        Ok((users, pagination)) => {
+            println!("Retrieved {} users with per_page=1000", users.len());
+            println!("Has next page: {}", pagination.has_next());
+
+            assert!(users.len() <= 1000, "Should not exceed requested page size");
+        }
+        Err(e) => {
+            panic!("Failed to list users: {:?}", e);
         }
     }
 }

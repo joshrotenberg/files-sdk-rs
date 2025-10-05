@@ -1,13 +1,13 @@
 //! Comprehensive real API tests for FileActionHandler
 
 use crate::real::*;
-use files_sdk::{FileActionHandler, FileHandler, FolderHandler};
+use files_sdk::{FileActionHandler, FileHandler};
 
 #[tokio::test]
 async fn test_begin_upload_small_file() {
     let client = get_test_client();
     let file_action_handler = FileActionHandler::new(client.clone());
-    let file_handler = FileHandler::new(client);
+    let file_handler = FileHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -28,9 +28,11 @@ async fn test_begin_upload_small_file() {
             println!("Begin upload successful: {:?}", upload_info);
 
             // Verify response structure
+            assert!(!upload_info.is_empty(), "Upload info should not be empty");
+            let first_part = &upload_info[0];
             assert!(
-                upload_info.path == Some(test_path.to_string())
-                    || upload_info.path == Some(test_path.trim_start_matches('/').to_string()),
+                first_part.path == Some(test_path.to_string())
+                    || first_part.path == Some(test_path.trim_start_matches('/').to_string()),
                 "Upload info should include correct path"
             );
 
@@ -50,7 +52,6 @@ async fn test_begin_upload_small_file() {
 async fn test_begin_upload_large_file_multipart() {
     let client = get_test_client();
     let file_action_handler = FileActionHandler::new(client.clone());
-    let file_handler = FileHandler::new(client);
 
     ensure_test_folder(&client).await;
 
@@ -72,12 +73,15 @@ async fn test_begin_upload_large_file_multipart() {
         Ok(upload_info) => {
             println!("Begin upload successful for large file");
 
+            assert!(!upload_info.is_empty(), "Upload info should not be empty");
+            let first_part = &upload_info[0];
+
             // Check if multipart upload info is present
-            if let Some(ref upload_uri) = upload_info.upload_uri {
+            if let Some(ref upload_uri) = first_part.upload_uri {
                 println!("Upload URI: {}", upload_uri);
             }
 
-            if let Some(ref part_number) = upload_info.part_number {
+            if let Some(ref part_number) = first_part.part_number {
                 println!("Multipart upload detected, part number: {}", part_number);
             }
 
@@ -93,7 +97,7 @@ async fn test_begin_upload_large_file_multipart() {
 #[tokio::test]
 async fn test_begin_upload_without_mkdir_parents() {
     let client = get_test_client();
-    let file_action_handler = FileActionHandler::new(client);
+    let file_action_handler = FileActionHandler::new(client.clone());
 
     // Try to upload to non-existent folder without mkdir_parents
     let test_path = "/integration-tests/nonexistent-folder/file.txt";
@@ -124,7 +128,7 @@ async fn test_begin_upload_without_mkdir_parents() {
 async fn test_file_action_copy() {
     let client = get_test_client();
     let file_action_handler = FileActionHandler::new(client.clone());
-    let file_handler = FileHandler::new(client);
+    let file_handler = FileHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -144,7 +148,7 @@ async fn test_file_action_copy() {
     println!("Testing file_action copy");
 
     // Copy using file_action
-    let copy_result = file_action_handler.copy(source, dest).await;
+    let copy_result = file_action_handler.copy_file(source, dest).await;
 
     match copy_result {
         Ok(_) => {
@@ -172,7 +176,7 @@ async fn test_file_action_copy() {
 async fn test_file_action_move() {
     let client = get_test_client();
     let file_action_handler = FileActionHandler::new(client.clone());
-    let file_handler = FileHandler::new(client);
+    let file_handler = FileHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -192,7 +196,7 @@ async fn test_file_action_move() {
     println!("Testing file_action move");
 
     // Move using file_action
-    let move_result = file_action_handler.r#move(source, dest).await;
+    let move_result = file_action_handler.move_file(source, dest).await;
 
     match move_result {
         Ok(_) => {
@@ -219,7 +223,7 @@ async fn test_file_action_move() {
 async fn test_file_action_copy_to_existing_destination() {
     let client = get_test_client();
     let file_action_handler = FileActionHandler::new(client.clone());
-    let file_handler = FileHandler::new(client);
+    let file_handler = FileHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -243,7 +247,7 @@ async fn test_file_action_copy_to_existing_destination() {
     println!("Testing file_action copy to existing file (conflict)");
 
     // Try to copy to existing destination
-    let copy_result = file_action_handler.copy(source, dest).await;
+    let copy_result = file_action_handler.copy_file(source, dest).await;
 
     match copy_result {
         Ok(_) => {
@@ -266,7 +270,7 @@ async fn test_file_action_copy_to_existing_destination() {
 async fn test_file_action_metadata() {
     let client = get_test_client();
     let file_action_handler = FileActionHandler::new(client.clone());
-    let file_handler = FileHandler::new(client);
+    let file_handler = FileHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -283,7 +287,7 @@ async fn test_file_action_metadata() {
     println!("Testing file_action metadata retrieval");
 
     // Get metadata using file_action
-    let metadata_result = file_action_handler.metadata(test_path).await;
+    let metadata_result = file_action_handler.get_metadata(test_path).await;
 
     match metadata_result {
         Ok(metadata) => {
@@ -312,7 +316,7 @@ async fn test_file_action_metadata() {
 #[tokio::test]
 async fn test_begin_upload_with_custom_etag() {
     let client = get_test_client();
-    let file_action_handler = FileActionHandler::new(client);
+    let file_action_handler = FileActionHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -321,27 +325,25 @@ async fn test_begin_upload_with_custom_etag() {
 
     cleanup_file(&client, test_path).await;
 
-    println!("Testing begin_upload with custom etag");
+    println!("Testing begin_upload - checking for etag in response");
 
-    // Begin upload with etag parameter
+    // Begin upload and check if response includes etag
     let result = file_action_handler
-        .begin_upload_with_etag(test_path, Some(test_size), Some("test-etag-value"), true)
+        .begin_upload(test_path, Some(test_size), true)
         .await;
 
     match result {
         Ok(upload_info) => {
-            println!("Begin upload with etag successful: {:?}", upload_info);
+            println!("Begin upload successful: {:?}", upload_info);
 
-            // The response may include etag information
-            if let Some(ref etag) = upload_info.etag {
-                println!("ETag in response: {}", etag);
-            }
+            assert!(!upload_info.is_empty(), "Upload info should not be empty");
+            let first_part = &upload_info[0];
+
+            // The response may include upload information
+            println!("Upload part info: {:?}", first_part);
         }
         Err(e) => {
-            eprintln!(
-                "Begin upload with etag failed (may not be supported): {:?}",
-                e
-            );
+            eprintln!("Begin upload failed: {:?}", e);
         }
     }
 

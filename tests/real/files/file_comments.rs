@@ -9,7 +9,7 @@ use files_sdk::{FileCommentHandler, FileCommentReactionHandler, FileHandler};
 async fn test_file_comment_workflow() {
     let client = get_test_client();
     let file_handler = FileHandler::new(client.clone());
-    let comment_handler = FileCommentHandler::new(client);
+    let comment_handler = FileCommentHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -34,7 +34,7 @@ async fn test_file_comment_workflow() {
             println!("Comment created: {:?}", comment);
 
             // Extract comment ID for later operations
-            if let Some(id) = comment.data.get("id").and_then(|v| v.as_i64()) {
+            if let Some(id) = comment.id {
                 println!("Comment ID: {}", id);
                 Some(id)
             } else {
@@ -101,7 +101,7 @@ async fn test_file_comment_reaction_workflow() {
     let client = get_test_client();
     let file_handler = FileHandler::new(client.clone());
     let comment_handler = FileCommentHandler::new(client.clone());
-    let reaction_handler = FileCommentReactionHandler::new(client);
+    let _reaction_handler = FileCommentReactionHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -124,7 +124,7 @@ async fn test_file_comment_reaction_workflow() {
 
     let comment_id = match comment_result {
         Ok(comment) => {
-            if let Some(id) = comment.data.get("id").and_then(|v| v.as_i64()) {
+            if let Some(id) = comment.id {
                 println!("Created comment with ID: {}", id);
                 id
             } else {
@@ -151,7 +151,7 @@ async fn test_file_comment_reaction_workflow() {
         Ok(reaction) => {
             println!("Reaction added: {:?}", reaction);
 
-            if let Some(id) = reaction.data.get("id").and_then(|v| v.as_i64()) {
+            if let Some(id) = reaction.id {
                 println!("Reaction ID: {}", id);
                 Some(id)
             } else {
@@ -190,7 +190,7 @@ async fn test_file_comment_reaction_workflow() {
 async fn test_multiple_comments_on_file() {
     let client = get_test_client();
     let file_handler = FileHandler::new(client.clone());
-    let comment_handler = FileCommentHandler::new(client);
+    let comment_handler = FileCommentHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -215,7 +215,7 @@ async fn test_multiple_comments_on_file() {
 
         match result {
             Ok(comment) => {
-                if let Some(id) = comment.data.get("id").and_then(|v| v.as_i64()) {
+                if let Some(id) = comment.id {
                     println!("Created comment {}: ID {}", i, id);
                     comment_ids.push(id);
                 }
@@ -260,7 +260,7 @@ async fn test_multiple_comments_on_file() {
 #[tokio::test]
 async fn test_comment_on_nonexistent_file() {
     let client = get_test_client();
-    let comment_handler = FileCommentHandler::new(client);
+    let comment_handler = FileCommentHandler::new(client.clone());
 
     let nonexistent_file = "/integration-tests/does-not-exist.txt";
 
@@ -287,7 +287,7 @@ async fn test_comment_on_nonexistent_file() {
 async fn test_empty_comment_body() {
     let client = get_test_client();
     let file_handler = FileHandler::new(client.clone());
-    let comment_handler = FileCommentHandler::new(client);
+    let comment_handler = FileCommentHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -310,7 +310,7 @@ async fn test_empty_comment_body() {
             println!("Empty comment created (API may allow): {:?}", comment);
 
             // Clean up the comment
-            if let Some(id) = comment.data.get("id").and_then(|v| v.as_i64()) {
+            if let Some(id) = comment.id {
                 let _ = comment_handler.delete(id).await;
             }
         }
@@ -328,7 +328,7 @@ async fn test_empty_comment_body() {
 #[tokio::test]
 async fn test_update_nonexistent_comment() {
     let client = get_test_client();
-    let comment_handler = FileCommentHandler::new(client);
+    let comment_handler = FileCommentHandler::new(client.clone());
 
     let nonexistent_id = 999999999;
 
@@ -352,7 +352,7 @@ async fn test_update_nonexistent_comment() {
 #[tokio::test]
 async fn test_delete_nonexistent_comment() {
     let client = get_test_client();
-    let comment_handler = FileCommentHandler::new(client);
+    let comment_handler = FileCommentHandler::new(client.clone());
 
     let nonexistent_id = 999999999;
 

@@ -23,3 +23,11 @@ mod users;
 // Sharing features tests
 #[path = "real/sharing/mod.rs"]
 mod sharing;
+
+// Admin features tests
+#[path = "real/admin/mod.rs"]
+mod admin;
+
+// Automation features tests
+#[path = "real/automation/mod.rs"]
+mod automation;

@@ -1,5 +1,4 @@
 //! Real API integration tests for BundleHandler (share links)
-use crate::real::*;
 //!
 //! These tests run against the actual Files.com API and require:
 //! - FILES_API_KEY environment variable to be set
@@ -7,16 +6,15 @@ use crate::real::*;
 //!
 //! These tests create and clean up test bundles.
 
-
-use files_sdk::{BundleHandler, FileHandler, FilesClient, FolderHandler};
-
+use crate::real::*;
+use files_sdk::{BundleHandler, FileHandler, FolderHandler};
 
 #[tokio::test]
 async fn test_real_api_create_and_delete_bundle() {
     let client = get_test_client();
     let bundle_handler = BundleHandler::new(client.clone());
     let file_handler = FileHandler::new(client.clone());
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     // Ensure test folder and file exist
     let test_folder = "/integration-tests";
@@ -102,7 +100,7 @@ async fn test_real_api_bundle_with_password() {
     let client = get_test_client();
     let bundle_handler = BundleHandler::new(client.clone());
     let file_handler = FileHandler::new(client.clone());
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     // Ensure test folder and file exist
     let test_folder = "/integration-tests";
@@ -169,7 +167,7 @@ async fn test_real_api_bundle_update() {
     let client = get_test_client();
     let bundle_handler = BundleHandler::new(client.clone());
     let file_handler = FileHandler::new(client.clone());
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     // Ensure test folder and file exist
     let test_folder = "/integration-tests";
