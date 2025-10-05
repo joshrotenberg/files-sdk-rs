@@ -11,16 +11,3 @@ semver_check = true
 [changelog]
 # Use conventional commits standard
 conventional_commits = true
-# Include all commit types in changelog
-commit_types = [
-    "feat",
-    "fix",
-    "perf",
-    "refactor",
-    "style",
-    "test",
-    "chore",
-    "docs",
-    "build",
-    "ci"
-]
