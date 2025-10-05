@@ -1,13 +1,9 @@
 [workspace]
 # Enable changelog updates
 changelog_update = true
-# Use conventional commits for changelog generation
+# Create git releases
 git_release_enable = true
 # Create git tags for releases
 git_tag_enable = true
 # Use semantic versioning
 semver_check = true
-
-[changelog]
-# Use conventional commits standard
-conventional_commits = true
