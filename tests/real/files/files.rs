@@ -8,6 +8,8 @@
 
 use crate::real::*;
 use files_sdk::{FileActionHandler, FileHandler, FolderHandler};
+use std::fs;
+use std::path::Path;
 
 #[tokio::test]
 async fn test_real_api_file_upload_and_download() {
@@ -254,7 +256,7 @@ async fn test_real_api_large_file_upload() {
 async fn test_upload_directory() {
     let client = get_test_client();
     let file_handler = FileHandler::new(client.clone());
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
@@ -304,7 +306,7 @@ async fn test_upload_directory() {
 async fn test_upload_directory_with_progress() {
     let client = get_test_client();
     let file_handler = FileHandler::new(client.clone());
-    let folder_handler = FolderHandler::new(client);
+    let folder_handler = FolderHandler::new(client.clone());
 
     ensure_test_folder(&client).await;
 
