@@ -11,8 +11,10 @@
 
 pub mod api_request_logs;
 pub mod automation_logs;
+pub mod email_incoming_messages;
 pub mod email_logs;
 pub mod exavault_api_request_logs;
+pub mod external_events;
 pub mod ftp_action_logs;
 pub mod outbound_connection_logs;
 pub mod public_hosting_request_logs;
@@ -24,8 +26,10 @@ pub mod web_dav_action_logs;
 // Re-export handlers
 pub use api_request_logs::ApiRequestLogHandler;
 pub use automation_logs::AutomationLogHandler;
+pub use email_incoming_messages::EmailIncomingMessageHandler;
 pub use email_logs::EmailLogHandler;
 pub use exavault_api_request_logs::ExavaultApiRequestLogHandler;
+pub use external_events::ExternalEventHandler;
 pub use ftp_action_logs::FtpActionLogHandler;
 pub use outbound_connection_logs::OutboundConnectionLogHandler;
 pub use public_hosting_request_logs::PublicHostingRequestLogHandler;
@@ -37,8 +41,10 @@ pub use web_dav_action_logs::WebDavActionLogHandler;
 // Re-export entities
 pub use api_request_logs::ApiRequestLogEntity;
 pub use automation_logs::AutomationLogEntity;
+pub use email_incoming_messages::EmailIncomingMessageEntity;
 pub use email_logs::EmailLogEntity;
 pub use exavault_api_request_logs::ExavaultApiRequestLogEntity;
+pub use external_events::ExternalEventEntity;
 pub use ftp_action_logs::FtpActionLogEntity;
 pub use outbound_connection_logs::OutboundConnectionLogEntity;
 pub use public_hosting_request_logs::PublicHostingRequestLogEntity;
