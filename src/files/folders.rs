@@ -43,6 +43,7 @@
 
 use crate::utils::encode_path;
 use crate::{FileEntity, FilesClient, PaginationInfo, Result};
+use futures::stream::Stream;
 use serde_json::json;
 
 /// Handler for folder operations
@@ -187,6 +188,65 @@ impl FolderHandler {
         }
 
         Ok(all_files)
+    }
+
+    /// Stream folder contents with automatic pagination
+    ///
+    /// Returns a stream that automatically handles pagination, yielding
+    /// individual files as they are fetched. This is more memory-efficient
+    /// than `list_folder_all()` for large directories.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Folder path to list
+    /// * `per_page` - Number of items per page (optional, default 1000)
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use files_sdk::{FilesClient, FolderHandler};
+    /// # use futures::stream::StreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = FolderHandler::new(client);
+    /// let stream = handler.list_stream("/uploads", Some(100));
+    ///
+    /// tokio::pin!(stream);
+    ///
+    /// while let Some(file) = stream.next().await {
+    ///     let file = file?;
+    ///     println!("{}", file.path.unwrap_or_default());
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn list_stream(
+        &self,
+        path: &str,
+        per_page: Option<i32>,
+    ) -> impl Stream<Item = Result<FileEntity>> + '_ {
+        let path = path.to_string();
+        let per_page = per_page.unwrap_or(1000);
+
+        async_stream::try_stream! {
+            let mut cursor: Option<String> = None;
+
+            loop {
+                let (files, pagination) = self
+                    .list_folder(&path, Some(per_page), cursor.clone())
+                    .await?;
+
+                for file in files {
+                    yield file;
+                }
+
+                match pagination.cursor_next {
+                    Some(next) => cursor = Some(next),
+                    None => break,
+                }
+            }
+        }
     }
 
     /// Create a new folder

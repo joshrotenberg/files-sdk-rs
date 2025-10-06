@@ -147,6 +147,76 @@ let automation = handler.create(
 let (automations, _) = handler.list(None, Some(50), None).await?;
 ```
 
+### Pagination
+
+The SDK provides three approaches to handle paginated results:
+
+#### Manual Pagination
+
+```rust
+use files_sdk::{FilesClient, FolderHandler};
+
+let client = FilesClient::builder().api_key("key").build()?;
+let handler = FolderHandler::new(client);
+
+// Get first page
+let (files, pagination) = handler.list_folder("/uploads", Some(100), None).await?;
+
+// Get next page if available
+if let Some(cursor) = pagination.cursor_next {
+    let (more_files, _) = handler.list_folder("/uploads", Some(100), Some(cursor)).await?;
+}
+```
+
+#### Auto-Pagination (Collect All)
+
+```rust
+use files_sdk::{FilesClient, FolderHandler};
+
+let client = FilesClient::builder().api_key("key").build()?;
+let handler = FolderHandler::new(client);
+
+// Automatically fetch all pages
+let all_files = handler.list_folder_all("/uploads").await?;
+println!("Total files: {}", all_files.len());
+```
+
+#### Streaming Pagination (Memory-Efficient)
+
+```rust
+use files_sdk::{FilesClient, FolderHandler, UserHandler};
+use futures::stream::StreamExt;
+
+let client = FilesClient::builder().api_key("key").build()?;
+
+// Stream folder contents
+let folder_handler = FolderHandler::new(client.clone());
+let mut stream = folder_handler.list_stream("/uploads", Some(100));
+
+while let Some(file) = stream.next().await {
+    let file = file?;
+    println!("Processing: {}", file.path.unwrap_or_default());
+}
+
+// Or collect all at once
+let stream = folder_handler.list_stream("/uploads", Some(100));
+let all_files: Vec<_> = stream.try_collect().await?;
+
+// Stream users
+let user_handler = UserHandler::new(client);
+let mut user_stream = user_handler.list_stream(Some(50));
+
+while let Some(user) = user_stream.next().await {
+    let user = user?;
+    println!("User: {}", user.username.unwrap_or_default());
+}
+```
+
+**When to use each approach:**
+- **Manual**: Fine-grained control, show "Load More" UI
+- **Auto-pagination**: Simple cases, small-to-medium result sets
+- **Streaming**: Large result sets, memory-constrained environments, real-time processing
+
 ### Error Handling
 
 All errors include contextual information to help with debugging and recovery:

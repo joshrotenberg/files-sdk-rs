@@ -2,6 +2,7 @@
 
 use crate::real::*;
 use files_sdk::{FileHandler, FilesError, FolderHandler};
+use futures::stream::{StreamExt, TryStreamExt};
 
 #[tokio::test]
 async fn test_folder_list_with_pagination() {
@@ -386,4 +387,84 @@ async fn test_folder_with_special_characters() {
             }
         }
     }
+}
+
+#[tokio::test]
+async fn test_folder_list_stream() {
+    let client = get_test_client();
+    let folder_handler = FolderHandler::new(client.clone());
+    let file_handler = FileHandler::new(client.clone());
+
+    ensure_test_folder(&client).await;
+
+    let test_folder = "/integration-tests/stream-test";
+    let _ = folder_handler.create_folder(test_folder, true).await;
+
+    println!("Creating test files for stream test...");
+
+    // Upload 10 test files
+    for i in 1..=10 {
+        let file_path = format!("{}/stream-file-{}.txt", test_folder, i);
+        let content = format!("Stream content {}", i).into_bytes();
+        let _ = file_handler.upload_file(&file_path, &content).await;
+    }
+
+    println!("Testing streaming pagination with per_page=3");
+
+    // Use streaming with small page size to test pagination
+    let stream = folder_handler.list_stream(test_folder, Some(3));
+    let mut count = 0;
+
+    tokio::pin!(stream);
+
+    while let Some(result) = stream.next().await {
+        match result {
+            Ok(file) => {
+                count += 1;
+                println!("Streamed file {}: {}", count, file.path.unwrap_or_default());
+            }
+            Err(e) => {
+                eprintln!("Stream error: {:?}", e);
+                break;
+            }
+        }
+    }
+
+    println!("Total files streamed: {}", count);
+    assert!(count >= 10, "Should have streamed at least 10 files");
+
+    // Clean up
+    let _ = folder_handler.delete_folder(test_folder, true).await;
+}
+
+#[tokio::test]
+async fn test_folder_list_stream_collect() {
+    let client = get_test_client();
+    let folder_handler = FolderHandler::new(client.clone());
+
+    ensure_test_folder(&client).await;
+
+    println!("Testing stream collect on integration-tests folder");
+
+    // Collect all files using stream
+    let stream = folder_handler.list_stream("/integration-tests", Some(10));
+    let files: Vec<_> = stream.try_collect().await.unwrap_or_default();
+
+    println!("Collected {} files via stream", files.len());
+    assert!(!files.is_empty(), "Should have collected some files");
+
+    // Compare with list_folder_all
+    let all_files = folder_handler
+        .list_folder_all("/integration-tests")
+        .await
+        .unwrap_or_default();
+
+    println!("list_folder_all returned {} files", all_files.len());
+
+    // Both methods should return the same count
+    assert_eq!(
+        files.len(),
+        all_files.len(),
+        "Stream and list_folder_all should return same count"
+    );
 }
