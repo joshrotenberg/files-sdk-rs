@@ -126,10 +126,11 @@ pub mod types;
 
 // Domain modules
 pub mod admin;
-pub mod advanced;
 pub mod as2;
 pub mod automation;
+pub mod developers;
 pub mod files;
+pub mod integrations;
 pub mod logs;
 pub mod messages;
 pub mod security;
@@ -148,13 +149,10 @@ pub use types::{FileEntity, FileUploadPartEntity, FolderEntity, PaginationInfo};
 
 // Re-export all handlers for backward compatibility
 pub use admin::{
-    ActionNotificationExportHandler, ActionNotificationExportResultHandler, HistoryExportHandler2,
-    HistoryExportResultHandler2, HistoryHandler, InvoiceHandler, PaymentHandler, SiteHandler,
-};
-pub use advanced::{
-    AppHandler, ChildSiteManagementPolicyHandler, DnsRecordHandler, EmailIncomingMessageHandler,
-    ExternalEventHandler, FormFieldSetHandler, HolidayRegionHandler, ShareGroupHandler,
-    SiemHttpDestinationHandler, StyleHandler,
+    ActionNotificationExportHandler, ActionNotificationExportResultHandler,
+    ChildSiteManagementPolicyHandler, DnsRecordHandler, HistoryExportHandler2,
+    HistoryExportResultHandler2, HistoryHandler, HolidayRegionHandler, InvoiceHandler,
+    PaymentHandler, SiteHandler, StyleHandler,
 };
 pub use as2::{
     As2IncomingMessageHandler, As2OutgoingMessageHandler, As2PartnerHandler, As2StationHandler,
@@ -163,14 +161,17 @@ pub use automation::{
     AutomationHandler, AutomationRunHandler, BehaviorHandler, RemoteMountBackendHandler,
     RemoteServerHandler, SyncHandler, SyncRunHandler,
 };
+pub use developers::AppHandler;
 pub use files::{
     FileActionHandler, FileCommentHandler, FileCommentReactionHandler, FileHandler,
     FileMigrationHandler, FileMigrationLogHandler, FolderHandler,
 };
+pub use integrations::SiemHttpDestinationHandler;
 pub use logs::{
-    ApiRequestLogHandler, AutomationLogHandler, EmailLogHandler, ExavaultApiRequestLogHandler,
-    FtpActionLogHandler, OutboundConnectionLogHandler, PublicHostingRequestLogHandler,
-    SettingsChangeHandler, SftpActionLogHandler, SyncLogHandler, WebDavActionLogHandler,
+    ApiRequestLogHandler, AutomationLogHandler, EmailIncomingMessageHandler, EmailLogHandler,
+    ExavaultApiRequestLogHandler, ExternalEventHandler, FtpActionLogHandler,
+    OutboundConnectionLogHandler, PublicHostingRequestLogHandler, SettingsChangeHandler,
+    SftpActionLogHandler, SyncLogHandler, WebDavActionLogHandler,
 };
 pub use messages::{
     MessageCommentHandler, MessageCommentReactionHandler, MessageHandler, MessageReactionHandler,
@@ -179,8 +180,8 @@ pub use messages::{
 pub use security::{ClickwrapHandler, GpgKeyHandler, IpAddressHandler, SftpHostKeyHandler};
 pub use sharing::{
     BundleActionHandler, BundleDownloadHandler, BundleHandler, BundleNotificationHandler,
-    BundleRecipientHandler, BundleRegistrationHandler, InboxRecipientHandler,
-    InboxRegistrationHandler2, InboxUploadHandler, RequestHandler,
+    BundleRecipientHandler, BundleRegistrationHandler, FormFieldSetHandler, InboxRecipientHandler,
+    InboxRegistrationHandler2, InboxUploadHandler, RequestHandler, ShareGroupHandler,
 };
 pub use storage::{
     BandwidthSnapshotHandler, LockHandler, PriorityHandler, ProjectHandler,

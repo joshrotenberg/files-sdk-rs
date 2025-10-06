@@ -194,17 +194,18 @@ RUST_LOG=files_sdk=debug cargo run
 |--------|-----------|-------------|
 | `files::` | 50+ | File upload/download, folders, comments |
 | `users::` | 40+ | Users, groups, permissions, API keys |
-| `sharing::` | 30+ | Bundles, file requests, inbox uploads |
+| `sharing::` | 35+ | Bundles, file requests, share groups, forms |
 | `automation::` | 25+ | Automations, behaviors, webhooks |
-| `admin::` | 20+ | Site settings, history, invoices |
-| `logs::` | 30+ | API logs, SFTP logs, audit trails |
+| `admin::` | 28+ | Site settings, history, invoices, DNS, styles |
+| `logs::` | 35+ | API logs, SFTP logs, audit trails, external events |
 | `messages::` | 10+ | Notifications, message exports |
 | `storage::` | 15+ | Projects, snapshots, locks |
 | `security::` | 10+ | GPG keys, SFTP host keys |
 | `as2::` | 40+ | AS2 stations, partners, messages |
-| `advanced::` | 28+ | Form fields, share groups, SIEM |
+| `integrations::` | 5+ | SIEM destinations |
+| `developers::` | 5+ | Apps and API integrations |
 
-**Total: 288 endpoints across 90+ handlers**
+**Total: 288 endpoints across 90 handlers**
 
 ## Error Types
 
