@@ -33,7 +33,7 @@
 //!     Some("Q4 2024 Financial Report"),
 //!     Some("Internal sharing only"),
 //!     None,
-//!     true,
+//!     Some(true),
 //!     Some("read")
 //! ).await?;
 //!
@@ -381,7 +381,7 @@ impl BundleHandler {
     ///     Some("Monthly Report"),
     ///     None,
     ///     None,
-    ///     false,
+    ///     Some(false),
     ///     Some("read")
     /// ).await?;
     ///
