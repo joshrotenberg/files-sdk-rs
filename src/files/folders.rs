@@ -41,6 +41,7 @@
 //! # }
 //! ```
 
+use crate::utils::encode_path;
 use crate::{FileEntity, FilesClient, PaginationInfo, Result};
 use serde_json::json;
 
@@ -107,7 +108,8 @@ impl FolderHandler {
         per_page: Option<i32>,
         cursor: Option<String>,
     ) -> Result<(Vec<FileEntity>, PaginationInfo)> {
-        let mut endpoint = format!("/folders{}", path);
+        let encoded_path = encode_path(path);
+        let mut endpoint = format!("/folders{}", encoded_path);
         let mut query_params = Vec::new();
 
         if let Some(per_page) = per_page {
@@ -214,7 +216,8 @@ impl FolderHandler {
             "mkdir_parents": mkdir_parents,
         });
 
-        let endpoint = format!("/folders{}", path);
+        let encoded_path = encode_path(path);
+        let endpoint = format!("/folders{}", encoded_path);
         let response = self.client.post_raw(&endpoint, body).await?;
         Ok(serde_json::from_value(response)?)
     }
@@ -239,10 +242,11 @@ impl FolderHandler {
     /// # }
     /// ```
     pub async fn delete_folder(&self, path: &str, recursive: bool) -> Result<()> {
+        let encoded_path = encode_path(path);
         let endpoint = if recursive {
-            format!("/folders{}?recursive=true", path)
+            format!("/folders{}?recursive=true", encoded_path)
         } else {
-            format!("/folders{}", path)
+            format!("/folders{}", encoded_path)
         };
 
         self.client.delete_raw(&endpoint).await?;
@@ -276,7 +280,8 @@ impl FolderHandler {
         search: &str,
         per_page: Option<i32>,
     ) -> Result<(Vec<FileEntity>, PaginationInfo)> {
-        let mut endpoint = format!("/folders{}?search={}", path, search);
+        let encoded_path = encode_path(path);
+        let mut endpoint = format!("/folders{}?search={}", encoded_path, search);
 
         if let Some(per_page) = per_page {
             endpoint.push_str(&format!("&per_page={}", per_page));

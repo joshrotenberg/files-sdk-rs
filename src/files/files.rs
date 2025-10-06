@@ -12,6 +12,7 @@
 
 use crate::files::FileActionHandler;
 use crate::types::FileEntity;
+use crate::utils::encode_path;
 use crate::{FilesClient, Result};
 use serde_json::json;
 use std::collections::HashMap;
@@ -66,7 +67,8 @@ impl FileHandler {
     /// # }
     /// ```
     pub async fn download_file(&self, path: &str) -> Result<FileEntity> {
-        let endpoint = format!("/files{}", path);
+        let encoded_path = encode_path(path);
+        let endpoint = format!("/files{}", encoded_path);
         let response = self.client.get_raw(&endpoint).await?;
         Ok(serde_json::from_value(response)?)
     }
@@ -163,7 +165,8 @@ impl FileHandler {
         };
 
         // Stage 3: Finalize upload with Files.com
-        let endpoint = format!("/files{}", path);
+        let encoded_path = encode_path(path);
+        let endpoint = format!("/files{}", encoded_path);
 
         // Build the finalization request as form data
         let mut form = vec![("action", "end".to_string())];
@@ -232,7 +235,8 @@ impl FileHandler {
             body["priority_color"] = json!(color);
         }
 
-        let endpoint = format!("/files{}", path);
+        let encoded_path = encode_path(path);
+        let endpoint = format!("/files{}", encoded_path);
         let response = self.client.patch_raw(&endpoint, body).await?;
         Ok(serde_json::from_value(response)?)
     }
@@ -257,10 +261,11 @@ impl FileHandler {
     /// # }
     /// ```
     pub async fn delete_file(&self, path: &str, recursive: bool) -> Result<()> {
+        let encoded_path = encode_path(path);
         let endpoint = if recursive {
-            format!("/files{}?recursive=true", path)
+            format!("/files{}?recursive=true", encoded_path)
         } else {
-            format!("/files{}", path)
+            format!("/files{}", encoded_path)
         };
 
         self.client.delete_raw(&endpoint).await?;

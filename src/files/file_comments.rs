@@ -7,6 +7,7 @@
 //! - Delete comments
 //! - React to comments
 
+use crate::utils::encode_path;
 use crate::{FilesClient, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -69,7 +70,8 @@ impl FileCommentHandler {
     /// # }
     /// ```
     pub async fn list(&self, path: &str) -> Result<Vec<FileCommentEntity>> {
-        let endpoint = format!("/file_comments/files{}", path);
+        let encoded_path = encode_path(path);
+        let endpoint = format!("/file_comments/files{}", encoded_path);
         let response = self.client.get_raw(&endpoint).await?;
         Ok(serde_json::from_value(response)?)
     }

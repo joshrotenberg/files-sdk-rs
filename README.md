@@ -207,6 +207,20 @@ RUST_LOG=files_sdk=debug cargo run
 
 **Total: 288 endpoints across 90 handlers**
 
+## Path Encoding & Special Characters
+
+The SDK automatically handles special characters in file paths:
+
+```rust
+// These all work correctly - paths are automatically URL-encoded
+handler.upload_file("/my folder/file.txt", data).await?;           // spaces
+handler.upload_file("/data/file[2024].txt", data).await?;          // brackets
+handler.upload_file("/文档/测试.txt", data).await?;                 // unicode
+handler.upload_file("/files/report@#1.txt", data).await?;          // special chars
+```
+
+Paths are encoded using percent-encoding (RFC 3986), ensuring compatibility with Files.com's API regardless of the characters used in file or folder names.
+
 ## Error Types
 
 ```rust

@@ -9,6 +9,7 @@
 //! The most important operation here is `begin_upload`, which must be called
 //! before uploading any file to Files.com.
 
+use crate::utils::encode_path;
 use crate::{FileUploadPartEntity, FilesClient, Result};
 use serde_json::json;
 
@@ -84,7 +85,8 @@ impl FileActionHandler {
             body["size"] = json!(size);
         }
 
-        let endpoint = format!("/file_actions/begin_upload{}", path);
+        let encoded_path = encode_path(path);
+        let endpoint = format!("/file_actions/begin_upload{}", encoded_path);
         let response = self.client.post_raw(&endpoint, body).await?;
 
         // Response can be a single object or an array
@@ -124,7 +126,8 @@ impl FileActionHandler {
             "mkdir_parents": mkdir_parents,
         });
 
-        let endpoint = format!("/file_actions/begin_upload{}", path);
+        let encoded_path = encode_path(path);
+        let endpoint = format!("/file_actions/begin_upload{}", encoded_path);
         let response = self.client.post_raw(&endpoint, body).await?;
 
         // Response should be an array for multipart
@@ -159,7 +162,8 @@ impl FileActionHandler {
             "destination": destination,
         });
 
-        let endpoint = format!("/file_actions/copy{}", path);
+        let encoded_path = encode_path(path);
+        let endpoint = format!("/file_actions/copy{}", encoded_path);
         self.client.post_raw(&endpoint, body).await?;
         Ok(())
     }
@@ -188,7 +192,8 @@ impl FileActionHandler {
             "destination": destination,
         });
 
-        let endpoint = format!("/file_actions/move{}", path);
+        let encoded_path = encode_path(path);
+        let endpoint = format!("/file_actions/move{}", encoded_path);
         self.client.post_raw(&endpoint, body).await?;
         Ok(())
     }
@@ -216,7 +221,8 @@ impl FileActionHandler {
     /// # }
     /// ```
     pub async fn get_metadata(&self, path: &str) -> Result<crate::FileEntity> {
-        let endpoint = format!("/file_actions/metadata{}", path);
+        let encoded_path = encode_path(path);
+        let endpoint = format!("/file_actions/metadata{}", encoded_path);
         let response = self.client.post_raw(&endpoint, json!({})).await?;
         Ok(serde_json::from_value(response)?)
     }
