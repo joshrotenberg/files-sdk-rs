@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1](https://github.com/joshrotenberg/files-sdk-rs/compare/v0.3.0...v0.3.1) - 2025-10-06
+
+### Other
+
+- improve README with Files.com context and community disclaimer ([#56](https://github.com/joshrotenberg/files-sdk-rs/pull/56))
+- add comprehensive integration tests for sharing, automation, and admin modules ([#55](https://github.com/joshrotenberg/files-sdk-rs/pull/55))
+
 ## [0.3.0](https://github.com/joshrotenberg/files-sdk-rs/compare/v0.2.0...v0.3.0) - 2025-10-06
 
 ### Added
