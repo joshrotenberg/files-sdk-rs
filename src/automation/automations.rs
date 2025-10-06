@@ -1,7 +1,56 @@
 //! Automation operations
 //!
-//! Automations allow you to automate file operations like copying, moving, deleting files,
-//! or running syncs on a schedule or triggered by file events.
+//! Automations enable scheduled or event-driven file operations without manual intervention.
+//! Create workflows that automatically process files based on schedules, file events, or webhooks.
+//!
+//! # Features
+//!
+//! - Schedule automated file operations (copy, move, delete)
+//! - Trigger actions on file events (upload, download, modify)
+//! - Configure recurring tasks (daily, weekly, monthly)
+//! - Set up webhook-triggered automations
+//! - Manage syncs with remote servers
+//! - Import files from external URLs
+//!
+//! # Automation Types
+//!
+//! - `create_folder` - Create directories automatically
+//! - `delete_file` - Delete files matching patterns
+//! - `copy_file` - Copy files to destinations
+//! - `move_file` - Move files between locations
+//! - `run_sync` - Execute sync operations
+//! - `import_file` - Import from external URLs
+//!
+//! # Example
+//!
+//! ```no_run
+//! use files_sdk::{FilesClient, AutomationHandler};
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let client = FilesClient::builder()
+//!     .api_key("your-api-key")
+//!     .build()?;
+//!
+//! let handler = AutomationHandler::new(client);
+//!
+//! // Create automation to copy uploaded files to archive daily
+//! let automation = handler.create(
+//!     "copy_file",
+//!     Some("/uploads/*.pdf"),
+//!     Some("/archive/"),
+//!     None,
+//!     Some("day"),
+//!     Some("/uploads"),
+//!     Some("daily")
+//! ).await?;
+//!
+//! println!("Created automation ID: {}", automation.id.unwrap());
+//!
+//! // Manually trigger the automation
+//! handler.manual_run(automation.id.unwrap()).await?;
+//! # Ok(())
+//! # }
+//! ```
 
 use crate::{FilesClient, PaginationInfo, Result};
 use serde::{Deserialize, Serialize};
@@ -207,24 +256,44 @@ impl AutomationHandler {
         Self { client }
     }
 
-    /// List automations
+    /// List all automations
+    ///
+    /// Returns a paginated list of automation workflows with optional filtering
+    /// by automation type.
     ///
     /// # Arguments
-    /// * `cursor` - Pagination cursor
-    /// * `per_page` - Results per page
-    /// * `automation` - Filter by automation type
+    ///
+    /// * `cursor` - Pagination cursor from previous response
+    /// * `per_page` - Number of results per page (max 10,000)
+    /// * `automation` - Filter by automation type (e.g., "copy_file", "move_file")
     ///
     /// # Returns
-    /// Tuple of (automations, pagination_info)
+    ///
+    /// A tuple containing:
+    /// - Vector of `AutomationEntity` objects
+    /// - `PaginationInfo` with cursors for next/previous pages
     ///
     /// # Example
+    ///
     /// ```no_run
     /// use files_sdk::{FilesClient, AutomationHandler};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = FilesClient::builder().api_key("key").build()?;
     /// let handler = AutomationHandler::new(client);
-    /// let (automations, _) = handler.list(None, None, None).await?;
+    ///
+    /// // List all automations
+    /// let (automations, pagination) = handler.list(None, Some(50), None).await?;
+    ///
+    /// for automation in automations {
+    ///     println!("{}: {} - Disabled: {}",
+    ///         automation.name.unwrap_or_default(),
+    ///         automation.automation.unwrap_or_default(),
+    ///         automation.disabled.unwrap_or(false));
+    /// }
+    ///
+    /// // Filter by type
+    /// let (copy_automations, _) = handler.list(None, None, Some("copy_file")).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -272,45 +341,77 @@ impl AutomationHandler {
         Ok((automations, pagination))
     }
 
-    /// Get a specific automation
+    /// Get details of a specific automation
     ///
     /// # Arguments
+    ///
     /// * `id` - Automation ID
-    pub async fn get(&self, id: i64) -> Result<AutomationEntity> {
-        let response = self.client.get_raw(&format!("/automations/{}", id)).await?;
-        Ok(serde_json::from_value(response)?)
-    }
-
-    /// Create a new automation
-    ///
-    /// # Arguments
-    /// * `automation` - Automation type (required)
-    /// * `source` - Source path/glob
-    /// * `destination` - Destination path
-    /// * `destinations` - Destination paths (array)
-    /// * `interval` - Schedule interval
-    /// * `path` - Path on which automation runs
-    /// * `trigger` - Trigger type
     ///
     /// # Returns
-    /// The created automation
+    ///
+    /// An `AutomationEntity` with complete automation configuration
     ///
     /// # Example
+    ///
     /// ```no_run
     /// use files_sdk::{FilesClient, AutomationHandler};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = FilesClient::builder().api_key("key").build()?;
     /// let handler = AutomationHandler::new(client);
+    ///
+    /// let automation = handler.get(12345).await?;
+    /// println!("Automation: {}", automation.name.unwrap_or_default());
+    /// println!("Schedule: {}", automation.human_readable_schedule.unwrap_or_default());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn get(&self, id: i64) -> Result<AutomationEntity> {
+        let response = self.client.get_raw(&format!("/automations/{}", id)).await?;
+        Ok(serde_json::from_value(response)?)
+    }
+
+    /// Create a new automation workflow
+    ///
+    /// Creates an automation that performs file operations automatically based on
+    /// schedules or triggers.
+    ///
+    /// # Arguments
+    ///
+    /// * `automation` - Type of automation: "copy_file", "move_file", "delete_file",
+    ///   "create_folder", "run_sync", "import_file" (required)
+    /// * `source` - Source path or glob pattern (e.g., "/uploads/*.pdf")
+    /// * `destination` - Single destination path
+    /// * `destinations` - Multiple destination paths (use instead of destination)
+    /// * `interval` - Schedule interval: "day", "week", "month", "year"
+    /// * `path` - Base path where automation operates
+    /// * `trigger` - Trigger type: "daily", "custom", "webhook", "email", "action", "interval"
+    ///
+    /// # Returns
+    ///
+    /// The newly created `AutomationEntity`
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use files_sdk::{FilesClient, AutomationHandler};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = AutomationHandler::new(client);
+    ///
+    /// // Create daily automation to archive PDFs
     /// let automation = handler.create(
     ///     "copy_file",
-    ///     Some("/source/*.txt"),
-    ///     Some("/destination/"),
+    ///     Some("/uploads/*.pdf"),
+    ///     Some("/archive/daily/"),
     ///     None,
-    ///     None,
-    ///     Some("/source"),
-    ///     Some("action")
+    ///     Some("day"),
+    ///     Some("/uploads"),
+    ///     Some("daily")
     /// ).await?;
+    ///
+    /// println!("Created automation: {}", automation.id.unwrap());
     /// # Ok(())
     /// # }
     /// ```
@@ -352,17 +453,45 @@ impl AutomationHandler {
         Ok(serde_json::from_value(response)?)
     }
 
-    /// Update an automation
+    /// Update an existing automation
+    ///
+    /// Modifies automation configuration. Only provided fields are updated;
+    /// omitted fields remain unchanged.
     ///
     /// # Arguments
-    /// * `id` - Automation ID
-    /// * `source` - Source path/glob
-    /// * `destination` - Destination path
-    /// * `interval` - Schedule interval
-    /// * `disabled` - Disable the automation
+    ///
+    /// * `id` - Automation ID to update
+    /// * `source` - New source path or glob pattern
+    /// * `destination` - New destination path
+    /// * `interval` - New schedule interval
+    /// * `disabled` - Enable (false) or disable (true) the automation
     ///
     /// # Returns
-    /// The updated automation
+    ///
+    /// The updated `AutomationEntity`
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use files_sdk::{FilesClient, AutomationHandler};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = AutomationHandler::new(client);
+    ///
+    /// // Disable an automation temporarily
+    /// let automation = handler.update(
+    ///     12345,
+    ///     None,
+    ///     None,
+    ///     None,
+    ///     Some(true)
+    /// ).await?;
+    ///
+    /// println!("Automation disabled");
+    /// # Ok(())
+    /// # }
+    /// ```
     #[allow(clippy::too_many_arguments)]
     pub async fn update(
         &self,
@@ -394,10 +523,29 @@ impl AutomationHandler {
         Ok(serde_json::from_value(response)?)
     }
 
-    /// Delete an automation
+    /// Delete an automation permanently
+    ///
+    /// Removes the automation and stops all scheduled or triggered executions.
+    /// This operation cannot be undone.
     ///
     /// # Arguments
-    /// * `id` - Automation ID
+    ///
+    /// * `id` - Automation ID to delete
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use files_sdk::{FilesClient, AutomationHandler};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = AutomationHandler::new(client);
+    ///
+    /// handler.delete(12345).await?;
+    /// println!("Automation deleted");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn delete(&self, id: i64) -> Result<()> {
         self.client
             .delete_raw(&format!("/automations/{}", id))
@@ -405,13 +553,34 @@ impl AutomationHandler {
         Ok(())
     }
 
-    /// Manually run an automation
+    /// Manually trigger an automation execution
+    ///
+    /// Immediately executes the automation regardless of its schedule or trigger settings.
+    /// Useful for testing or running an automation on-demand.
     ///
     /// # Arguments
-    /// * `id` - Automation ID
+    ///
+    /// * `id` - Automation ID to execute
     ///
     /// # Returns
-    /// The automation run result
+    ///
+    /// JSON response with execution details and status
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use files_sdk::{FilesClient, AutomationHandler};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = AutomationHandler::new(client);
+    ///
+    /// // Manually trigger the automation to run now
+    /// let result = handler.manual_run(12345).await?;
+    /// println!("Automation executed: {:?}", result);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn manual_run(&self, id: i64) -> Result<serde_json::Value> {
         let response = self
             .client

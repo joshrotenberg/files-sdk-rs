@@ -1,18 +1,53 @@
 //! Folder operations
 //!
-//! This module provides folder (directory) operations including:
-//! - List folder contents
-//! - Create folders
-//! - Delete folders
+//! Provides directory management and navigation operations for Files.com. Folders are
+//! represented as `FileEntity` objects with `type="directory"`.
 //!
-//! Note: Folders in Files.com are represented as FileEntity objects with type="directory"
+//! # Features
+//!
+//! - List folder contents with pagination
+//! - Create folders (with parent directory creation)
+//! - Delete folders (recursive or non-recursive)
+//! - Search files within folders
+//! - Automatic pagination for large directories
+//!
+//! # Example
+//!
+//! ```no_run
+//! use files_sdk::{FilesClient, FolderHandler};
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let client = FilesClient::builder()
+//!     .api_key("your-api-key")
+//!     .build()?;
+//!
+//! let handler = FolderHandler::new(client);
+//!
+//! // List root directory
+//! let (files, pagination) = handler.list_folder("/", None, None).await?;
+//! for file in files {
+//!     println!("{}: {}",
+//!         file.file_type.unwrap_or_default(),
+//!         file.path.unwrap_or_default());
+//! }
+//!
+//! // Create a new folder with parent directories
+//! handler.create_folder("/projects/2024/q4", true).await?;
+//!
+//! // Search for files
+//! let (results, _) = handler.search_folder("/", "report", None).await?;
+//! println!("Found {} matching files", results.len());
+//! # Ok(())
+//! # }
+//! ```
 
 use crate::{FileEntity, FilesClient, PaginationInfo, Result};
 use serde_json::json;
 
 /// Handler for folder operations
 ///
-/// Provides methods for listing, creating, and managing folders.
+/// Provides methods for listing, creating, searching, and managing folders
+/// (directories) in Files.com.
 #[derive(Debug, Clone)]
 pub struct FolderHandler {
     client: FilesClient,
