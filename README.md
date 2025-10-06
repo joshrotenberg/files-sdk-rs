@@ -5,13 +5,28 @@
 [![License](https://img.shields.io/crates/l/files-sdk.svg)](https://github.com/joshrotenberg/files-sdk-rs#license)
 [![CI](https://github.com/joshrotenberg/files-sdk-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/joshrotenberg/files-sdk-rs/actions/workflows/ci.yml)
 
-Rust SDK for the [Files.com](https://files.com) API - 288 endpoints, fully async, type-safe.
+A community-maintained Rust SDK for the [Files.com](https://files.com) API - 288 endpoints, fully async, type-safe.
+
+> **Note**: This is an unofficial, community-maintained library and is not supported by Files.com. For official SDKs, see the [Files.com Developer Documentation](https://developers.files.com/).
+
+## About Files.com
+
+[Files.com](https://files.com) is a cloud storage and file transfer platform with enterprise-grade security and compliance features. This SDK provides programmatic access to the Files.com [REST API](https://developers.files.com/api/), enabling:
+
+- File operations (upload, download, copy, move, delete)
+- User and permission management
+- File sharing and collaboration (bundles, requests, inboxes)
+- Automation and webhooks
+- Audit logging and reporting
+- And much more across 90+ resource types
 
 ## Installation
 
+Add to your `Cargo.toml`:
+
 ```toml
 [dependencies]
-files-sdk = "0.1"
+files-sdk = "0.3"
 ```
 
 ## Quick Start
