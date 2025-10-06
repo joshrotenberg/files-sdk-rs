@@ -50,6 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 use files_sdk::{FilesClient, files::FileHandler};
+use std::path::Path;
 
 let client = FilesClient::builder().api_key("key").build()?;
 let handler = FileHandler::new(client);
@@ -61,14 +62,28 @@ handler.upload_file_with_options(
     true  // mkdir_parents
 ).await?;
 
+// Download file metadata (returns FileEntity with download_uri)
+let file = handler.download_file("/reports/2024/summary.pdf").await?;
+println!("Download URL: {:?}", file.download_uri);
+
+// Download actual file content as bytes
+let content = handler.download_content("/reports/2024/summary.pdf").await?;
+println!("Downloaded {} bytes", content.len());
+
+// Download directly to local file
+handler.download_to_file(
+    "/reports/2024/summary.pdf",
+    Path::new("./local/summary.pdf")
+).await?;
+
 // Copy file
-handler.copy("/original.txt", "/backup.txt").await?;
+handler.copy_file("/original.txt", "/backup.txt").await?;
 
 // Move file
 handler.move_file("/old/path.txt", "/new/path.txt").await?;
 
 // Delete file
-handler.delete("/unwanted.txt").await?;
+handler.delete_file("/unwanted.txt", false).await?;
 ```
 
 ### User Management
