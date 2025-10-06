@@ -46,6 +46,7 @@
 //! ```
 
 use crate::{FilesClient, PaginationInfo, Result};
+use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -254,6 +255,62 @@ impl UserHandler {
         };
 
         Ok((users, pagination))
+    }
+
+    /// Stream all users with automatic pagination
+    ///
+    /// Returns a stream that automatically handles pagination, yielding
+    /// individual users as they are fetched. This is more memory-efficient
+    /// for large user lists.
+    ///
+    /// # Arguments
+    ///
+    /// * `per_page` - Number of users per page (optional, default 1000)
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use files_sdk::{FilesClient, UserHandler};
+    /// # use futures::stream::StreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = UserHandler::new(client);
+    /// let stream = handler.list_stream(Some(100));
+    ///
+    /// tokio::pin!(stream);
+    ///
+    /// while let Some(user) = stream.next().await {
+    ///     let user = user?;
+    ///     println!("{}", user.username.unwrap_or_default());
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn list_stream(
+        &self,
+        per_page: Option<i32>,
+    ) -> impl Stream<Item = Result<UserEntity>> + '_ {
+        let per_page = per_page.unwrap_or(1000);
+
+        async_stream::try_stream! {
+            let mut cursor: Option<String> = None;
+
+            loop {
+                let (users, pagination) = self
+                    .list(cursor.clone(), Some(per_page))
+                    .await?;
+
+                for user in users {
+                    yield user;
+                }
+
+                match pagination.cursor_next {
+                    Some(next) => cursor = Some(next),
+                    None => break,
+                }
+            }
+        }
     }
 
     /// Get details of a specific user by ID
