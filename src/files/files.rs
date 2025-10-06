@@ -210,7 +210,8 @@ impl FileHandler {
             .await?;
 
         if upload_parts.is_empty() {
-            return Err(crate::FilesError::ApiError { endpoint: None,
+            return Err(crate::FilesError::ApiError {
+                endpoint: None,
                 code: 500,
                 message: "No upload parts returned from begin_upload".to_string(),
             });
