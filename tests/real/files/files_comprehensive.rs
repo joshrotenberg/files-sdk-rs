@@ -189,6 +189,9 @@ async fn test_file_copy_to_different_folder() {
         Ok(_) => {
             println!("Successfully copied file to different folder");
 
+            // Give the server a moment to complete the copy operation
+            tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+
             // Verify both files exist
             let source_exists = file_handler.download_file(source_file).await.is_ok();
             let dest_exists = file_handler.download_file(dest_file).await.is_ok();

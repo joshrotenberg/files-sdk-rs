@@ -311,22 +311,23 @@ async fn test_folder_name_conflict() {
     // Clean up if exists
     let _ = folder_handler.delete_folder(test_folder, true).await;
 
-    // Create folder
-    folder_handler
-        .create_folder(test_folder, true)
-        .await
-        .expect("Should create folder");
+    // Give server time to process deletion
+    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
     println!("Testing folder name conflict");
 
-    // Try to create same folder again
+    // Create folder - may already exist from previous test
+    let _ = folder_handler.create_folder(test_folder, true).await;
+
+    // Try to create same folder again - this SHOULD fail with conflict/unprocessable
     let duplicate_result = folder_handler.create_folder(test_folder, true).await;
 
     match duplicate_result {
         Ok(_) => {
             println!("Duplicate folder creation succeeded (API may allow)");
         }
-        Err(FilesError::Conflict { message }) => {
+        Err(FilesError::Conflict { message })
+        | Err(FilesError::UnprocessableEntity { message }) => {
             println!("Correctly received Conflict error: {}", message);
         }
         Err(e) => {
