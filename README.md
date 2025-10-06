@@ -84,6 +84,25 @@ handler.move_file("/old/path.txt", "/new/path.txt").await?;
 
 // Delete file
 handler.delete_file("/unwanted.txt", false).await?;
+
+// Upload entire directory recursively
+let uploaded = handler.upload_directory(
+    Path::new("./local/images"),
+    "/remote/uploads",
+    true  // create parent directories
+).await?;
+println!("Uploaded {} files: {:?}", uploaded.len(), uploaded);
+
+// Upload directory with progress callback
+handler.upload_directory_with_progress(
+    Path::new("./data"),
+    "/backups",
+    true,
+    |current, total| {
+        println!("Progress: {}/{} ({:.1}%)",
+            current, total, (current as f64 / total as f64) * 100.0);
+    }
+).await?;
 ```
 
 ### User Management
