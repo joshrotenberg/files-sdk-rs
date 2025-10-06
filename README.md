@@ -149,25 +149,79 @@ let (automations, _) = handler.list(None, Some(50), None).await?;
 
 ### Error Handling
 
+All errors include contextual information to help with debugging and recovery:
+
 ```rust
 use files_sdk::{FilesClient, FilesError, files::FileHandler};
 
 let client = FilesClient::builder().api_key("key").build()?;
 let handler = FileHandler::new(client);
 
-match handler.download("/missing.txt").await {
+match handler.download_content("/reports/missing.pdf").await {
     Ok(content) => println!("Downloaded {} bytes", content.len()),
-    Err(FilesError::NotFound { message }) => {
-        eprintln!("File not found: {}", message);
+    
+    Err(FilesError::NotFound { message, resource_type, path, .. }) => {
+        eprintln!("Not found: {}", message);
+        if let Some(rt) = resource_type {
+            eprintln!("  Resource type: {}", rt);
+        }
+        if let Some(p) = path {
+            eprintln!("  Path: {}", p);
+        }
     }
-    Err(FilesError::AuthenticationFailed { message }) => {
-        eprintln!("Auth failed: {}", message);
-    }
-    Err(FilesError::RateLimited { message }) => {
+    
+    Err(FilesError::RateLimited { message, retry_after, .. }) => {
         eprintln!("Rate limited: {}", message);
+        if let Some(seconds) = retry_after {
+            eprintln!("  Retry after {} seconds", seconds);
+        }
     }
-    Err(e) => eprintln!("Error: {}", e),
+    
+    Err(FilesError::UnprocessableEntity { message, field, value, .. }) => {
+        eprintln!("Validation failed: {}", message);
+        if let Some(f) = field {
+            eprintln!("  Invalid field: {}", f);
+        }
+        if let Some(v) = value {
+            eprintln!("  Invalid value: {}", v);
+        }
+    }
+    
+    Err(e) => {
+        eprintln!("Error: {}", e);
+        
+        // Check if error is retryable
+        if e.is_retryable() {
+            eprintln!("  This error may be temporary - consider retrying");
+        }
+        
+        // Get HTTP status code if available
+        if let Some(code) = e.status_code() {
+            eprintln!("  HTTP status: {}", code);
+        }
+    }
 }
+```
+
+Helper methods for error construction:
+
+```rust
+use files_sdk::FilesError;
+
+// Create contextual errors
+let err = FilesError::not_found_resource(
+    "File does not exist",
+    "file",
+    "/reports/Q4.pdf"
+);
+
+let err = FilesError::validation_failed(
+    "Invalid email format",
+    "email",
+    "not-an-email"
+);
+
+let err = FilesError::rate_limited("Too many requests", Some(60));
 ```
 
 ### Tracing (Optional)
@@ -238,22 +292,93 @@ Paths are encoded using percent-encoding (RFC 3986), ensuring compatibility with
 
 ## Error Types
 
+All errors include optional contextual fields for better debugging:
+
 ```rust
 pub enum FilesError {
-    BadRequest { message: String },           // 400
-    AuthenticationFailed { message: String }, // 401
-    Forbidden { message: String },            // 403
-    NotFound { message: String },             // 404
-    Conflict { message: String },             // 409
-    PreconditionFailed { message: String },   // 412
-    UnprocessableEntity { message: String },  // 422
-    Locked { message: String },               // 423
-    RateLimited { message: String },          // 429
-    InternalError { message: String },        // 500+
+    BadRequest { 
+        message: String,
+        field: Option<String>,  // Which field caused the error
+    },
+    
+    AuthenticationFailed { 
+        message: String,
+        request_id: Option<String>,  // Request ID for support
+    },
+    
+    Forbidden { 
+        message: String,
+        resource_type: Option<String>,  // What resource was forbidden
+    },
+    
+    NotFound { 
+        message: String,
+        resource_type: Option<String>,  // e.g., "file", "user"
+        path: Option<String>,           // Path that wasn't found
+    },
+    
+    Conflict { 
+        message: String,
+        resource_id: Option<String>,    // Conflicting resource ID
+    },
+    
+    PreconditionFailed { 
+        message: String,
+        condition: Option<String>,      // Which precondition failed
+    },
+    
+    UnprocessableEntity { 
+        message: String,
+        field: Option<String>,          // Invalid field name
+        value: Option<String>,          // Invalid value provided
+    },
+    
+    Locked { 
+        message: String,
+        path: Option<String>,           // Locked resource path
+    },
+    
+    RateLimited { 
+        message: String,
+        retry_after: Option<u64>,       // Seconds to wait before retry
+    },
+    
+    InternalError { 
+        message: String,
+        request_id: Option<String>,     // Request ID for support
+    },
+    
+    ApiError {
+        code: u16,
+        message: String,
+        endpoint: Option<String>,       // Which endpoint failed
+    },
+    
+    // Library errors
     Request(reqwest::Error),
     JsonError(serde_json::Error),
+    IoError(std::io::Error),
     BuilderError(String),
     UrlParseError(url::ParseError),
+}
+```
+
+Utility methods:
+
+```rust
+// Get HTTP status code
+if let Some(code) = error.status_code() {
+    println!("HTTP {}", code);
+}
+
+// Check if error is retryable (429, 500, 502, 503, 504)
+if error.is_retryable() {
+    // Implement retry logic
+}
+
+// Get retry delay for rate limits
+if let Some(seconds) = error.retry_after() {
+    tokio::time::sleep(Duration::from_secs(seconds)).await;
 }
 ```
 

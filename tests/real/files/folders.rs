@@ -290,7 +290,7 @@ async fn test_folder_not_found_error() {
     let list_result = folder_handler.list_folder(nonexistent, None, None).await;
 
     match list_result {
-        Err(FilesError::NotFound { message }) => {
+        Err(FilesError::NotFound { message, .. }) => {
             println!("Correctly received NotFound error: {}", message);
             assert!(!message.is_empty());
         }
@@ -326,8 +326,8 @@ async fn test_folder_name_conflict() {
         Ok(_) => {
             println!("Duplicate folder creation succeeded (API may allow)");
         }
-        Err(FilesError::Conflict { message })
-        | Err(FilesError::UnprocessableEntity { message }) => {
+        Err(FilesError::Conflict { message, .. })
+        | Err(FilesError::UnprocessableEntity { message, .. }) => {
             println!("Correctly received Conflict error: {}", message);
         }
         Err(e) => {

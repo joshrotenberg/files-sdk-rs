@@ -122,6 +122,7 @@
 
 // Core modules
 pub mod client;
+pub mod error;
 pub mod types;
 pub mod utils;
 
@@ -144,6 +145,9 @@ pub mod webhook_tests;
 
 // Re-export client types
 pub use client::{FilesClient, FilesClientBuilder};
+
+// Re-export error types
+pub use error::{FilesError, Result};
 
 // Re-export common types
 pub use types::{FileEntity, FileUploadPartEntity, FolderEntity, PaginationInfo};
@@ -195,76 +199,4 @@ pub use users::{
     UserHandler, UserLifecycleRuleHandler, UserRequestHandler, UserSftpClientUseHandler,
 };
 
-// Error handling
-use thiserror::Error;
-
-/// Errors that can occur when using the Files.com API
-#[derive(Error, Debug)]
-pub enum FilesError {
-    /// HTTP request failed
-    #[error("HTTP request failed: {0}")]
-    Request(#[from] reqwest::Error),
-
-    /// Bad Request (400)
-    #[error("Bad Request (400): {message}")]
-    BadRequest { message: String },
-
-    /// Authentication failed (401)
-    #[error("Authentication failed (401): {message}")]
-    AuthenticationFailed { message: String },
-
-    /// Forbidden (403)
-    #[error("Forbidden (403): {message}")]
-    Forbidden { message: String },
-
-    /// Not Found (404)
-    #[error("Not Found (404): {message}")]
-    NotFound { message: String },
-
-    /// Conflict (409) - Resource already exists or state conflict
-    #[error("Conflict (409): {message}")]
-    Conflict { message: String },
-
-    /// Precondition Failed (412) - Conditional request failed
-    #[error("Precondition Failed (412): {message}")]
-    PreconditionFailed { message: String },
-
-    /// Unprocessable Entity (422) - Validation error
-    #[error("Unprocessable Entity (422): {message}")]
-    UnprocessableEntity { message: String },
-
-    /// Locked (423) - Resource is locked
-    #[error("Locked (423): {message}")]
-    Locked { message: String },
-
-    /// Rate Limited (429)
-    #[error("Rate Limited (429): {message}")]
-    RateLimited { message: String },
-
-    /// Internal Server Error (500)
-    #[error("Internal Server Error (500): {message}")]
-    InternalServerError { message: String },
-
-    /// Service Unavailable (503)
-    #[error("Service Unavailable (503): {message}")]
-    ServiceUnavailable { message: String },
-
-    /// Generic API error with status code
-    #[error("API error ({code}): {message}")]
-    ApiError { code: u16, message: String },
-
-    /// Configuration error
-    #[error("Configuration error: {0}")]
-    ConfigError(String),
-
-    /// JSON serialization/deserialization error
-    #[error("JSON error: {0}")]
-    JsonError(#[from] serde_json::Error),
-
-    /// I/O error (file operations)
-    #[error("I/O error: {0}")]
-    IoError(String),
-}
-
-/// Result type for Files.com operations
-pub type Result<T> = std::result::Result<T, FilesError>;
+// Error types are now in the error module

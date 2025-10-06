@@ -51,7 +51,7 @@ impl EmailLogHandler {
         let status = response.status();
 
         if !status.is_success() {
-            return Err(crate::FilesError::ApiError {
+            return Err(crate::FilesError::ApiError { endpoint: None,
                 code: status.as_u16(),
                 message: response.text().await.unwrap_or_default(),
             });
