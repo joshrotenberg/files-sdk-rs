@@ -5,20 +5,13 @@
 [![License](https://img.shields.io/crates/l/files-sdk.svg)](https://github.com/joshrotenberg/files-sdk-rs#license)
 [![CI](https://github.com/joshrotenberg/files-sdk-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/joshrotenberg/files-sdk-rs/actions/workflows/ci.yml)
 
-A community-maintained Rust SDK for the [Files.com](https://files.com) API - 288 endpoints, fully async, type-safe.
+A Rust SDK for the [Files.com](https://files.com) API.
 
 > **Note**: This is an unofficial, community-maintained library and is not supported by Files.com. For official SDKs, see the [Files.com Developer Documentation](https://developers.files.com/).
 
 ## About Files.com
 
-[Files.com](https://files.com) is a cloud storage and file transfer platform with enterprise-grade security and compliance features. This SDK provides programmatic access to the Files.com [REST API](https://developers.files.com/api/), enabling:
-
-- File operations (upload, download, copy, move, delete)
-- User and permission management
-- File sharing and collaboration (bundles, requests, inboxes)
-- Automation and webhooks
-- Audit logging and reporting
-- And much more across 90+ resource types
+[Files.com](https://files.com) is a cloud storage and file transfer platform. This SDK provides access to the [Files.com REST API](https://developers.files.com/api/)
 
 ## Installation
 
@@ -363,22 +356,20 @@ RUST_LOG=files_sdk=debug cargo run
 
 ## API Coverage
 
-| Module | Endpoints | Description |
-|--------|-----------|-------------|
-| `files::` | 50+ | File upload/download, folders, comments |
-| `users::` | 40+ | Users, groups, permissions, API keys |
-| `sharing::` | 35+ | Bundles, file requests, share groups, forms |
-| `automation::` | 25+ | Automations, behaviors, webhooks |
-| `admin::` | 28+ | Site settings, history, invoices, DNS, styles |
-| `logs::` | 35+ | API logs, SFTP logs, audit trails, external events |
-| `messages::` | 10+ | Notifications, message exports |
-| `storage::` | 15+ | Projects, snapshots, locks |
-| `security::` | 10+ | GPG keys, SFTP host keys |
-| `as2::` | 40+ | AS2 stations, partners, messages |
-| `integrations::` | 5+ | SIEM destinations |
-| `developers::` | 5+ | Apps and API integrations |
-
-**Total: 288 endpoints across 90 handlers**
+| Module | Description |
+|--------|-------------|
+| `files::` | File upload/download, folders, comments |
+| `users::` | Users, groups, permissions, API keys |
+| `sharing::` | Bundles, file requests, share groups, forms |
+| `automation::` | Automations, behaviors, webhooks |
+| `admin::` | Site settings, history, invoices, DNS, styles |
+| `logs::` | API logs, SFTP logs, audit trails, external events |
+| `messages::` | Notifications, message exports |
+| `storage::` | Projects, snapshots, locks |
+| `security::` | GPG keys, SFTP host keys |
+| `as2::` | AS2 stations, partners, messages |
+| `integrations::` | SIEM destinations |
+| `developers::` | Apps and API integrations |
 
 ## Path Encoding & Special Characters
 
