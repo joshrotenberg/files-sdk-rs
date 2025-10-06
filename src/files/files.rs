@@ -16,6 +16,8 @@ use crate::utils::encode_path;
 use crate::{FilesClient, FilesError, Result};
 use serde_json::json;
 use std::collections::HashMap;
+use std::path::Path;
+use walkdir::WalkDir;
 
 /// Handler for file operations
 ///
@@ -387,6 +389,246 @@ impl FileHandler {
     pub async fn move_file(&self, source: &str, destination: &str) -> Result<()> {
         let file_action = FileActionHandler::new(self.client.clone());
         file_action.move_file(source, destination).await
+    }
+
+    /// Upload an entire directory recursively
+    ///
+    /// Walks through a local directory and uploads all files to Files.com,
+    /// preserving the directory structure.
+    ///
+    /// # Arguments
+    ///
+    /// * `local_dir` - Local directory path to upload
+    /// * `remote_path` - Remote destination path on Files.com
+    /// * `mkdir_parents` - Create parent directories if they don't exist
+    ///
+    /// # Returns
+    ///
+    /// Vector of successfully uploaded remote file paths
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Local directory doesn't exist or isn't readable
+    /// - Path contains invalid UTF-8
+    /// - Any file upload fails
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use files_sdk::{FilesClient, FileHandler};
+    /// use std::path::Path;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = FileHandler::new(client);
+    ///
+    /// let uploaded = handler.upload_directory(
+    ///     Path::new("./local/images"),
+    ///     "/remote/uploads",
+    ///     true  // create parent directories
+    /// ).await?;
+    ///
+    /// println!("Uploaded {} files", uploaded.len());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn upload_directory(
+        &self,
+        local_dir: &Path,
+        remote_path: &str,
+        mkdir_parents: bool,
+    ) -> Result<Vec<String>> {
+        let mut uploaded = Vec::new();
+
+        for entry in WalkDir::new(local_dir).into_iter().filter_map(|e| e.ok()) {
+            if entry.file_type().is_file() {
+                let local_file = entry.path();
+
+                // Calculate relative path
+                let relative = local_file
+                    .strip_prefix(local_dir)
+                    .map_err(|e| FilesError::IoError(format!("Failed to strip prefix: {}", e)))?
+                    .to_str()
+                    .ok_or_else(|| {
+                        FilesError::IoError(format!(
+                            "Invalid UTF-8 in path: {}",
+                            local_file.display()
+                        ))
+                    })?;
+
+                // Construct remote path (use forward slashes for Files.com)
+                let remote_file = format!(
+                    "{}/{}",
+                    remote_path.trim_end_matches('/'),
+                    relative.replace('\\', "/")
+                );
+
+                // Read and upload
+                let data =
+                    std::fs::read(local_file).map_err(|e| FilesError::IoError(e.to_string()))?;
+
+                // Upload using the same two-stage process as upload_file
+                let file_action = FileActionHandler::new(self.client.clone());
+                let upload_parts = file_action
+                    .begin_upload(&remote_file, Some(data.len() as i64), mkdir_parents)
+                    .await?;
+
+                if !upload_parts.is_empty() {
+                    let upload_part = &upload_parts[0];
+                    if let Some(upload_uri) = &upload_part.upload_uri {
+                        let http_client = reqwest::Client::new();
+                        let http_method = upload_part
+                            .http_method
+                            .as_deref()
+                            .unwrap_or("PUT")
+                            .to_uppercase();
+
+                        let mut request = match http_method.as_str() {
+                            "PUT" => http_client.put(upload_uri),
+                            "POST" => http_client.post(upload_uri),
+                            _ => http_client.put(upload_uri),
+                        };
+
+                        if let Some(headers) = &upload_part.headers {
+                            for (key, value) in headers {
+                                request = request.header(key, value);
+                            }
+                        }
+
+                        request.body(data.to_vec()).send().await?;
+                    }
+                }
+
+                uploaded.push(remote_file);
+            }
+        }
+
+        Ok(uploaded)
+    }
+
+    /// Upload directory with progress callback
+    ///
+    /// Same as `upload_directory` but calls a progress callback after each file upload.
+    /// Useful for showing upload progress in UIs or logging.
+    ///
+    /// # Arguments
+    ///
+    /// * `local_dir` - Local directory path to upload
+    /// * `remote_path` - Remote destination path on Files.com
+    /// * `mkdir_parents` - Create parent directories if they don't exist
+    /// * `progress` - Callback function called with (current_file_number, total_files)
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use files_sdk::{FilesClient, FileHandler};
+    /// use std::path::Path;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = FileHandler::new(client);
+    ///
+    /// handler.upload_directory_with_progress(
+    ///     Path::new("./data"),
+    ///     "/backups",
+    ///     true,
+    ///     |current, total| {
+    ///         println!("Progress: {}/{} ({:.1}%)",
+    ///             current, total, (current as f64 / total as f64) * 100.0);
+    ///     }
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn upload_directory_with_progress<F>(
+        &self,
+        local_dir: &Path,
+        remote_path: &str,
+        mkdir_parents: bool,
+        progress: F,
+    ) -> Result<Vec<String>>
+    where
+        F: Fn(usize, usize),
+    {
+        // Count files first
+        let total_files = WalkDir::new(local_dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .count();
+
+        let mut uploaded = Vec::new();
+        let mut current = 0;
+
+        for entry in WalkDir::new(local_dir).into_iter().filter_map(|e| e.ok()) {
+            if entry.file_type().is_file() {
+                let local_file = entry.path();
+
+                // Calculate relative path
+                let relative = local_file
+                    .strip_prefix(local_dir)
+                    .map_err(|e| FilesError::IoError(format!("Failed to strip prefix: {}", e)))?
+                    .to_str()
+                    .ok_or_else(|| {
+                        FilesError::IoError(format!(
+                            "Invalid UTF-8 in path: {}",
+                            local_file.display()
+                        ))
+                    })?;
+
+                // Construct remote path
+                let remote_file = format!(
+                    "{}/{}",
+                    remote_path.trim_end_matches('/'),
+                    relative.replace('\\', "/")
+                );
+
+                // Read and upload
+                let data =
+                    std::fs::read(local_file).map_err(|e| FilesError::IoError(e.to_string()))?;
+
+                // Upload using the same two-stage process as upload_file
+                let file_action = FileActionHandler::new(self.client.clone());
+                let upload_parts = file_action
+                    .begin_upload(&remote_file, Some(data.len() as i64), mkdir_parents)
+                    .await?;
+
+                if !upload_parts.is_empty() {
+                    let upload_part = &upload_parts[0];
+                    if let Some(upload_uri) = &upload_part.upload_uri {
+                        let http_client = reqwest::Client::new();
+                        let http_method = upload_part
+                            .http_method
+                            .as_deref()
+                            .unwrap_or("PUT")
+                            .to_uppercase();
+
+                        let mut request = match http_method.as_str() {
+                            "PUT" => http_client.put(upload_uri),
+                            "POST" => http_client.post(upload_uri),
+                            _ => http_client.put(upload_uri),
+                        };
+
+                        if let Some(headers) = &upload_part.headers {
+                            for (key, value) in headers {
+                                request = request.header(key, value);
+                            }
+                        }
+
+                        request.body(data.to_vec()).send().await?;
+                    }
+                }
+
+                uploaded.push(remote_file);
+                current += 1;
+                progress(current, total_files);
+            }
+        }
+
+        Ok(uploaded)
     }
 }
 

@@ -249,3 +249,111 @@ async fn test_real_api_large_file_upload() {
         }
     }
 }
+
+#[tokio::test]
+async fn test_upload_directory() {
+    let client = get_test_client();
+    let file_handler = FileHandler::new(client.clone());
+    let folder_handler = FolderHandler::new(client);
+
+    ensure_test_folder(&client).await;
+
+    // Create a temporary directory with test files
+    let temp_dir = std::env::temp_dir().join("files-sdk-test-upload");
+    let _ = fs::remove_dir_all(&temp_dir); // Clean up if exists
+    fs::create_dir_all(&temp_dir).unwrap();
+    fs::create_dir_all(temp_dir.join("subdir")).unwrap();
+
+    // Create test files
+    fs::write(temp_dir.join("file1.txt"), b"content 1").unwrap();
+    fs::write(temp_dir.join("file2.txt"), b"content 2").unwrap();
+    fs::write(temp_dir.join("subdir/file3.txt"), b"content 3").unwrap();
+
+    println!("Uploading directory to Files.com...");
+
+    let remote_path = "/integration-tests/dir-upload-test";
+
+    // Upload the directory
+    let result = file_handler
+        .upload_directory(Path::new(&temp_dir), remote_path, true)
+        .await;
+
+    match result {
+        Ok(uploaded) => {
+            println!("Successfully uploaded {} files", uploaded.len());
+            assert!(uploaded.len() >= 3, "Should upload at least 3 files");
+
+            // Verify files exist
+            let (files, _) = folder_handler
+                .list_folder(remote_path, None, None)
+                .await
+                .unwrap();
+            println!("Found {} items in remote directory", files.len());
+        }
+        Err(e) => {
+            eprintln!("Upload failed: {:?}", e);
+        }
+    }
+
+    // Cleanup
+    let _ = fs::remove_dir_all(&temp_dir);
+    let _ = folder_handler.delete_folder(remote_path, true).await;
+}
+
+#[tokio::test]
+async fn test_upload_directory_with_progress() {
+    let client = get_test_client();
+    let file_handler = FileHandler::new(client.clone());
+    let folder_handler = FolderHandler::new(client);
+
+    ensure_test_folder(&client).await;
+
+    // Create a temporary directory with test files
+    let temp_dir = std::env::temp_dir().join("files-sdk-test-upload-progress");
+    let _ = fs::remove_dir_all(&temp_dir);
+    fs::create_dir_all(&temp_dir).unwrap();
+
+    // Create 5 test files
+    for i in 1..=5 {
+        fs::write(
+            temp_dir.join(format!("file{}.txt", i)),
+            format!("content {}", i),
+        )
+        .unwrap();
+    }
+
+    println!("Uploading directory with progress tracking...");
+
+    let remote_path = "/integration-tests/dir-upload-progress-test";
+
+    // Upload with progress
+    let result = file_handler
+        .upload_directory_with_progress(
+            Path::new(&temp_dir),
+            remote_path,
+            true,
+            |current, total| {
+                println!(
+                    "Progress: {}/{} ({:.0}%)",
+                    current,
+                    total,
+                    (current as f64 / total as f64) * 100.0
+                );
+            },
+        )
+        .await;
+
+    match result {
+        Ok(uploaded) => {
+            println!("Successfully uploaded {} files", uploaded.len());
+            assert_eq!(uploaded.len(), 5, "Should upload exactly 5 files");
+        }
+        Err(e) => {
+            eprintln!("Upload with progress failed: {:?}", e);
+        }
+    }
+
+    // Cleanup
+    let _ = fs::remove_dir_all(&temp_dir);
+    let _ = folder_handler.delete_folder(remote_path, true).await;
+}
