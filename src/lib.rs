@@ -260,6 +260,10 @@ pub enum FilesError {
     /// JSON serialization/deserialization error
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
+
+    /// I/O error (file operations)
+    #[error("I/O error: {0}")]
+    IoError(String),
 }
 
 /// Result type for Files.com operations

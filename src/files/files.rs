@@ -13,7 +13,7 @@
 use crate::files::FileActionHandler;
 use crate::types::FileEntity;
 use crate::utils::encode_path;
-use crate::{FilesClient, Result};
+use crate::{FilesClient, FilesError, Result};
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -71,6 +71,96 @@ impl FileHandler {
         let endpoint = format!("/files{}", encoded_path);
         let response = self.client.get_raw(&endpoint).await?;
         Ok(serde_json::from_value(response)?)
+    }
+
+    /// Download the actual file content as bytes
+    ///
+    /// Unlike `download_file()` which returns metadata with a download URL,
+    /// this method fetches and returns the actual file content.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - File path to download
+    ///
+    /// # Returns
+    ///
+    /// Returns the file content as a `Vec<u8>`
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use files_sdk::{FilesClient, FileHandler};
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder()
+    ///     .api_key("your-api-key")
+    ///     .build()?;
+    ///
+    /// let handler = FileHandler::new(client);
+    /// let content = handler.download_content("/path/to/file.txt").await?;
+    /// println!("Downloaded {} bytes", content.len());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn download_content(&self, path: &str) -> Result<Vec<u8>> {
+        // First, get the file metadata to obtain the download URI
+        let file = self.download_file(path).await?;
+
+        // Extract the download URI
+        let download_uri = file.download_uri.ok_or_else(|| FilesError::NotFound {
+            message: format!("No download URI available for file: {}", path),
+        })?;
+
+        // Fetch the actual file content from the download URI
+        let response = reqwest::get(&download_uri)
+            .await
+            .map_err(FilesError::Request)?;
+
+        let bytes = response.bytes().await.map_err(FilesError::Request)?;
+
+        Ok(bytes.to_vec())
+    }
+
+    /// Download file content and save to a local file
+    ///
+    /// This is a convenience method that downloads the file content and
+    /// writes it to the specified local path.
+    ///
+    /// # Arguments
+    ///
+    /// * `remote_path` - Path to the file on Files.com
+    /// * `local_path` - Local filesystem path where the file should be saved
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use files_sdk::{FilesClient, FileHandler};
+    /// use std::path::Path;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder()
+    ///     .api_key("your-api-key")
+    ///     .build()?;
+    ///
+    /// let handler = FileHandler::new(client);
+    /// handler.download_to_file(
+    ///     "/path/to/remote/file.txt",
+    ///     Path::new("./local/file.txt")
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn download_to_file(
+        &self,
+        remote_path: &str,
+        local_path: &std::path::Path,
+    ) -> Result<()> {
+        let content = self.download_content(remote_path).await?;
+        std::fs::write(local_path, content)
+            .map_err(|e| FilesError::IoError(format!("Failed to write file: {}", e)))?;
+        Ok(())
     }
 
     /// Get file metadata only (no download URL, no logging)
