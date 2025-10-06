@@ -347,20 +347,56 @@ impl FilesClient {
             };
 
             let error = match status_code {
-                400 => FilesError::BadRequest { message },
-                401 => FilesError::AuthenticationFailed { message },
-                403 => FilesError::Forbidden { message },
-                404 => FilesError::NotFound { message },
-                409 => FilesError::Conflict { message },
-                412 => FilesError::PreconditionFailed { message },
-                422 => FilesError::UnprocessableEntity { message },
-                423 => FilesError::Locked { message },
-                429 => FilesError::RateLimited { message },
-                500 => FilesError::InternalServerError { message },
-                503 => FilesError::ServiceUnavailable { message },
+                400 => FilesError::BadRequest {
+                    message,
+                    field: None,
+                },
+                401 => FilesError::AuthenticationFailed {
+                    message,
+                    auth_type: None,
+                },
+                403 => FilesError::Forbidden {
+                    message,
+                    resource: None,
+                },
+                404 => FilesError::NotFound {
+                    message,
+                    resource_type: None,
+                    path: None,
+                },
+                409 => FilesError::Conflict {
+                    message,
+                    resource: None,
+                },
+                412 => FilesError::PreconditionFailed {
+                    message,
+                    condition: None,
+                },
+                422 => FilesError::UnprocessableEntity {
+                    message,
+                    field: None,
+                    value: None,
+                },
+                423 => FilesError::Locked {
+                    message,
+                    resource: None,
+                },
+                429 => FilesError::RateLimited {
+                    message,
+                    retry_after: None, // TODO: Parse Retry-After header
+                },
+                500 => FilesError::InternalServerError {
+                    message,
+                    request_id: None, // TODO: Parse request ID from headers
+                },
+                503 => FilesError::ServiceUnavailable {
+                    message,
+                    retry_after: None, // TODO: Parse Retry-After header
+                },
                 _ => FilesError::ApiError {
                     code: status_code,
                     message,
+                    endpoint: None,
                 },
             };
 

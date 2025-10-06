@@ -271,7 +271,7 @@ async fn test_comment_on_nonexistent_file() {
         .await;
 
     match result {
-        Err(files_sdk::FilesError::NotFound { message }) => {
+        Err(files_sdk::FilesError::NotFound { message, .. }) => {
             println!("Correctly received NotFound error: {}", message);
         }
         Err(e) => {
@@ -314,7 +314,7 @@ async fn test_empty_comment_body() {
                 let _ = comment_handler.delete(id).await;
             }
         }
-        Err(files_sdk::FilesError::UnprocessableEntity { message }) => {
+        Err(files_sdk::FilesError::UnprocessableEntity { message, .. }) => {
             println!("Correctly rejected empty comment: {}", message);
         }
         Err(e) => {
@@ -337,7 +337,7 @@ async fn test_update_nonexistent_comment() {
     let result = comment_handler.update(nonexistent_id, "Updated body").await;
 
     match result {
-        Err(files_sdk::FilesError::NotFound { message }) => {
+        Err(files_sdk::FilesError::NotFound { message, .. }) => {
             println!("Correctly received NotFound error: {}", message);
         }
         Err(e) => {
@@ -361,7 +361,7 @@ async fn test_delete_nonexistent_comment() {
     let result = comment_handler.delete(nonexistent_id).await;
 
     match result {
-        Err(files_sdk::FilesError::NotFound { message }) => {
+        Err(files_sdk::FilesError::NotFound { message, .. }) => {
             println!("Correctly received NotFound error: {}", message);
         }
         Err(e) => {

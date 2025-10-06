@@ -253,7 +253,7 @@ async fn test_file_action_copy_to_existing_destination() {
         Ok(_) => {
             println!("Copy to existing file succeeded (API may overwrite)");
         }
-        Err(files_sdk::FilesError::Conflict { message }) => {
+        Err(files_sdk::FilesError::Conflict { message, .. }) => {
             println!("Correctly received Conflict error: {}", message);
         }
         Err(e) => {

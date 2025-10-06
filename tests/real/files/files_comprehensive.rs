@@ -48,7 +48,7 @@ async fn test_file_not_found_error() {
     let result = file_handler.download_file(nonexistent_file).await;
 
     match result {
-        Err(FilesError::NotFound { message }) => {
+        Err(FilesError::NotFound { message, .. }) => {
             println!("Correctly received NotFound error: {}", message);
             assert!(!message.is_empty());
         }
@@ -301,7 +301,7 @@ async fn test_file_conflict_on_copy() {
         Ok(_) => {
             println!("Copy to existing file succeeded (API may overwrite)");
         }
-        Err(FilesError::Conflict { message }) => {
+        Err(FilesError::Conflict { message, .. }) => {
             println!("Correctly received Conflict error: {}", message);
         }
         Err(e) => {

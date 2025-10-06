@@ -108,8 +108,8 @@ impl FileHandler {
         let file = self.download_file(path).await?;
 
         // Extract the download URI
-        let download_uri = file.download_uri.ok_or_else(|| FilesError::NotFound {
-            message: format!("No download URI available for file: {}", path),
+        let download_uri = file.download_uri.ok_or_else(|| {
+            FilesError::not_found_resource("No download URI available", "file", path)
         })?;
 
         // Fetch the actual file content from the download URI
@@ -211,6 +211,7 @@ impl FileHandler {
 
         if upload_parts.is_empty() {
             return Err(crate::FilesError::ApiError {
+                endpoint: None,
                 code: 500,
                 message: "No upload parts returned from begin_upload".to_string(),
             });
