@@ -15,6 +15,10 @@ use std::time::Duration;
 #[cfg(feature = "tracing")]
 use tracing::{debug, error, instrument, warn};
 
+/// User-Agent header value
+/// Format: "Files.com Rust SDK {version}"
+const USER_AGENT: &str = concat!("Files.com Rust SDK ", env!("CARGO_PKG_VERSION"));
+
 /// Builder for constructing a FilesClient with custom configuration
 ///
 /// Provides a fluent interface for configuring API credentials, base URL, timeouts,
@@ -174,6 +178,7 @@ impl FilesClient {
             .client
             .get(&url)
             .header("X-FilesAPI-Key", &self.inner.api_key)
+            .header("User-Agent", USER_AGENT)
             .send()
             .await?;
 
@@ -208,6 +213,8 @@ impl FilesClient {
             .client
             .post(&url)
             .header("X-FilesAPI-Key", &self.inner.api_key)
+            .header("User-Agent", USER_AGENT)
+            .header("Content-Type", "application/json")
             .json(&body)
             .send()
             .await?;
@@ -243,6 +250,8 @@ impl FilesClient {
             .client
             .patch(&url)
             .header("X-FilesAPI-Key", &self.inner.api_key)
+            .header("User-Agent", USER_AGENT)
+            .header("Content-Type", "application/json")
             .json(&body)
             .send()
             .await?;
@@ -274,6 +283,7 @@ impl FilesClient {
             .client
             .delete(&url)
             .header("X-FilesAPI-Key", &self.inner.api_key)
+            .header("User-Agent", USER_AGENT)
             .send()
             .await?;
 
@@ -301,6 +311,7 @@ impl FilesClient {
             .client
             .post(&url)
             .header("X-FilesAPI-Key", &self.inner.api_key)
+            .header("User-Agent", USER_AGENT)
             .form(&form)
             .send()
             .await?;
