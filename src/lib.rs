@@ -123,6 +123,7 @@
 // Core modules
 pub mod client;
 pub mod types;
+pub mod utils;
 
 // Domain modules
 pub mod admin;

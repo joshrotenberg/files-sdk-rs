@@ -6,3 +6,4 @@ mod file_comments;
 mod files;
 mod files_comprehensive;
 mod folders;
+mod special_characters;
