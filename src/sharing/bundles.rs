@@ -1,7 +1,53 @@
 //! Bundle (Share Link) operations
 //!
-//! Bundles are the API/SDK term for Share Links in the Files.com web interface.
-//! They allow you to share files and folders with external users via a public URL.
+//! Bundles are the Files.com API term for Share Links. They allow you to share files
+//! and folders with external users via a public URL with granular access controls.
+//!
+//! # Features
+//!
+//! - Create shareable links to files and folders
+//! - Password protection and expiration dates
+//! - Access controls (read, write, preview-only)
+//! - Registration requirements and user tracking
+//! - Email sharing with notifications
+//! - Custom branding and legal clickwrap
+//!
+//! # Example
+//!
+//! ```no_run
+//! use files_sdk::{FilesClient, BundleHandler};
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let client = FilesClient::builder()
+//!     .api_key("your-api-key")
+//!     .build()?;
+//!
+//! let handler = BundleHandler::new(client);
+//!
+//! // Create a password-protected share link that expires in 7 days
+//! let bundle = handler.create(
+//!     vec!["/reports/quarterly-2024.pdf".to_string()],
+//!     Some("secure-password"),
+//!     Some("2024-12-31T23:59:59Z"),
+//!     None,
+//!     Some("Q4 2024 Financial Report"),
+//!     Some("Internal sharing only"),
+//!     None,
+//!     true,
+//!     Some("read")
+//! ).await?;
+//!
+//! println!("Share link: {}", bundle.url.unwrap_or_default());
+//!
+//! // Share via email
+//! handler.share(
+//!     bundle.id.unwrap(),
+//!     vec!["colleague@company.com".to_string()],
+//!     Some("Please review the Q4 report")
+//! ).await?;
+//! # Ok(())
+//! # }
+//! ```
 
 use crate::{FilesClient, PaginationInfo, Result};
 use serde::{Deserialize, Serialize};
@@ -184,24 +230,44 @@ impl BundleHandler {
         Self { client }
     }
 
-    /// List bundles
+    /// List all bundles accessible to the current user
+    ///
+    /// Returns a paginated list of bundles (share links) with optional filtering.
     ///
     /// # Arguments
-    /// * `user_id` - Filter by user ID (0 for current user)
-    /// * `cursor` - Pagination cursor
-    /// * `per_page` - Results per page
+    ///
+    /// * `user_id` - Filter bundles by user ID (None for all accessible bundles)
+    /// * `cursor` - Pagination cursor from previous response
+    /// * `per_page` - Number of results per page (max 10,000)
     ///
     /// # Returns
-    /// Tuple of (bundles, pagination_info)
+    ///
+    /// A tuple containing:
+    /// - Vector of `BundleEntity` objects
+    /// - `PaginationInfo` with cursors for next/previous pages
     ///
     /// # Example
+    ///
     /// ```no_run
     /// use files_sdk::{FilesClient, BundleHandler};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = FilesClient::builder().api_key("key").build()?;
     /// let handler = BundleHandler::new(client);
-    /// let (bundles, pagination) = handler.list(None, None, None).await?;
+    ///
+    /// // List first page of bundles
+    /// let (bundles, pagination) = handler.list(None, None, Some(50)).await?;
+    ///
+    /// for bundle in bundles {
+    ///     println!("Bundle: {} - {}",
+    ///         bundle.code.unwrap_or_default(),
+    ///         bundle.url.unwrap_or_default());
+    /// }
+    ///
+    /// // Get next page if available
+    /// if let Some(next_cursor) = pagination.cursor_next {
+    ///     let (more_bundles, _) = handler.list(None, Some(&next_cursor), Some(50)).await?;
+    /// }
     /// # Ok(())
     /// # }
     /// ```
@@ -246,33 +312,83 @@ impl BundleHandler {
         Ok((bundles, pagination))
     }
 
-    /// Get a specific bundle
+    /// Get details of a specific bundle by ID
     ///
     /// # Arguments
-    /// * `id` - Bundle ID
+    ///
+    /// * `id` - The unique bundle ID
     ///
     /// # Returns
-    /// The bundle entity
+    ///
+    /// A `BundleEntity` with complete bundle information
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use files_sdk::{FilesClient, BundleHandler};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = BundleHandler::new(client);
+    ///
+    /// let bundle = handler.get(12345).await?;
+    /// println!("Bundle URL: {}", bundle.url.unwrap_or_default());
+    /// println!("Expires: {}", bundle.expires_at.unwrap_or_default());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn get(&self, id: i64) -> Result<BundleEntity> {
         let response = self.client.get_raw(&format!("/bundles/{}", id)).await?;
         Ok(serde_json::from_value(response)?)
     }
 
-    /// Create a new bundle
+    /// Create a new bundle (share link)
+    ///
+    /// Creates a shareable link to one or more files or folders with configurable
+    /// access controls and restrictions.
     ///
     /// # Arguments
-    /// * `paths` - List of paths to include in bundle (required)
-    /// * `password` - Password protection
-    /// * `expires_at` - Expiration date/time
-    /// * `max_uses` - Maximum number of accesses
-    /// * `description` - Public description
-    /// * `note` - Internal note
-    /// * `code` - Custom bundle code for URL
-    /// * `require_registration` - Require user registration
-    /// * `permissions` - Permission level (read, write, read_write, full, preview_only)
+    ///
+    /// * `paths` - Vector of file/folder paths to share (required, must not be empty)
+    /// * `password` - Password required to access the bundle
+    /// * `expires_at` - ISO 8601 timestamp when bundle expires (e.g., "2024-12-31T23:59:59Z")
+    /// * `max_uses` - Maximum number of times bundle can be accessed
+    /// * `description` - Public description shown to recipients
+    /// * `note` - Private internal note (not shown to recipients)
+    /// * `code` - Custom URL code (auto-generated if not provided)
+    /// * `require_registration` - Require recipients to register before access
+    /// * `permissions` - Access level: "read", "write", "read_write", "full", "preview_only"
     ///
     /// # Returns
-    /// The created bundle
+    ///
+    /// The newly created `BundleEntity` with URL and access details
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use files_sdk::{FilesClient, BundleHandler};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = BundleHandler::new(client);
+    ///
+    /// // Create a simple share link
+    /// let bundle = handler.create(
+    ///     vec!["/documents/report.pdf".to_string()],
+    ///     None,
+    ///     None,
+    ///     None,
+    ///     Some("Monthly Report"),
+    ///     None,
+    ///     None,
+    ///     false,
+    ///     Some("read")
+    /// ).await?;
+    ///
+    /// println!("Share this link: {}", bundle.url.unwrap());
+    /// # Ok(())
+    /// # }
+    /// ```
     #[allow(clippy::too_many_arguments)]
     pub async fn create(
         &self,
@@ -319,18 +435,45 @@ impl BundleHandler {
         Ok(serde_json::from_value(response)?)
     }
 
-    /// Update a bundle
+    /// Update an existing bundle's settings
+    ///
+    /// Modifies bundle properties such as password, expiration, and description.
+    /// Only provided fields will be updated; omitted fields remain unchanged.
     ///
     /// # Arguments
-    /// * `id` - Bundle ID
-    /// * `password` - Password protection
-    /// * `expires_at` - Expiration date/time
-    /// * `max_uses` - Maximum number of accesses
-    /// * `description` - Public description
-    /// * `note` - Internal note
+    ///
+    /// * `id` - Bundle ID to update
+    /// * `password` - New password (pass empty string to remove password)
+    /// * `expires_at` - New expiration timestamp
+    /// * `max_uses` - New maximum access count
+    /// * `description` - New public description
+    /// * `note` - New internal note
     ///
     /// # Returns
-    /// The updated bundle
+    ///
+    /// The updated `BundleEntity`
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use files_sdk::{FilesClient, BundleHandler};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = BundleHandler::new(client);
+    ///
+    /// // Extend expiration and update description
+    /// let bundle = handler.update(
+    ///     12345,
+    ///     None,
+    ///     Some("2025-06-30T23:59:59Z"),
+    ///     None,
+    ///     Some("Updated report - extended access"),
+    ///     None
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     #[allow(clippy::too_many_arguments)]
     pub async fn update(
         &self,
@@ -366,10 +509,29 @@ impl BundleHandler {
         Ok(serde_json::from_value(response)?)
     }
 
-    /// Delete a bundle
+    /// Delete a bundle permanently
+    ///
+    /// Removes the bundle and revokes access via its share link. This operation
+    /// cannot be undone.
     ///
     /// # Arguments
-    /// * `id` - Bundle ID
+    ///
+    /// * `id` - Bundle ID to delete
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use files_sdk::{FilesClient, BundleHandler};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = BundleHandler::new(client);
+    ///
+    /// handler.delete(12345).await?;
+    /// println!("Bundle deleted successfully");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn delete(&self, id: i64) -> Result<()> {
         self.client.delete_raw(&format!("/bundles/{}", id)).await?;
         Ok(())
@@ -377,13 +539,38 @@ impl BundleHandler {
 
     /// Share a bundle via email
     ///
-    /// # Arguments
-    /// * `id` - Bundle ID
-    /// * `to` - Email recipients (comma-separated or array)
-    /// * `note` - Optional note to include in email
+    /// Sends email notifications with the bundle link to specified recipients.
+    /// Recipients receive an email with the share link and optional message.
     ///
-    /// # Returns
-    /// Success confirmation
+    /// # Arguments
+    ///
+    /// * `id` - Bundle ID to share
+    /// * `to` - Vector of recipient email addresses
+    /// * `note` - Optional message to include in the email
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use files_sdk::{FilesClient, BundleHandler};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = BundleHandler::new(client);
+    ///
+    /// // Share with multiple recipients
+    /// handler.share(
+    ///     12345,
+    ///     vec![
+    ///         "user1@example.com".to_string(),
+    ///         "user2@example.com".to_string()
+    ///     ],
+    ///     Some("Please review these files by Friday")
+    /// ).await?;
+    ///
+    /// println!("Bundle shared successfully");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn share(&self, id: i64, to: Vec<String>, note: Option<&str>) -> Result<()> {
         let mut body = json!({
             "to": to,
