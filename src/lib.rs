@@ -104,10 +104,10 @@
 //!
 //! match handler.download_file("/path/to/file.txt").await {
 //!     Ok(file) => println!("Downloaded: {:?}", file),
-//!     Err(FilesError::NotFound { message }) => {
+//!     Err(FilesError::NotFound { message, .. }) => {
 //!         println!("File not found: {}", message);
 //!     }
-//!     Err(FilesError::AuthenticationFailed { message }) => {
+//!     Err(FilesError::AuthenticationFailed { message, .. }) => {
 //!         println!("Invalid API key: {}", message);
 //!     }
 //!     Err(e) => println!("Other error: {}", e),
