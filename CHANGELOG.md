@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/joshrotenberg/files-sdk-rs/compare/v0.2.0...v0.3.0) - 2025-10-06
+
+### Added
+
+- add recursive directory upload with progress callback ([#52](https://github.com/joshrotenberg/files-sdk-rs/pull/52))
+- add auto-paginating stream iterators for list operations ([#50](https://github.com/joshrotenberg/files-sdk-rs/pull/50))
+- add methods to download actual file content ([#48](https://github.com/joshrotenberg/files-sdk-rs/pull/48))
+- add URL encoding for file paths with special characters ([#47](https://github.com/joshrotenberg/files-sdk-rs/pull/47))
+
+### Other
+
+- extract error types to dedicated module with contextual fields ([#49](https://github.com/joshrotenberg/files-sdk-rs/pull/49))
+- move a few things around ([#36](https://github.com/joshrotenberg/files-sdk-rs/pull/36))
+- replace manual cache steps with Swatinem/rust-cache ([#35](https://github.com/joshrotenberg/files-sdk-rs/pull/35))
+- reorganize handlers to match Files.com documentation categories ([#33](https://github.com/joshrotenberg/files-sdk-rs/pull/33))
+
 ## [0.2.0](https://github.com/joshrotenberg/files-sdk-rs/compare/v0.1.1...v0.2.0) - 2025-10-06
 
 ### Added
