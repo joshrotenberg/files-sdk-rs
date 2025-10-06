@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/joshrotenberg/files-sdk-rs/compare/v0.1.1...v0.2.0) - 2025-10-06
+
+### Added
+
+- add UserSftpClientUse handler to achieve 100% API coverage ([#30](https://github.com/joshrotenberg/files-sdk-rs/pull/30))
+
+### Fixed
+
+- adjust integration test assertions for real API behavior ([#29](https://github.com/joshrotenberg/files-sdk-rs/pull/29))
+
+### Other
+
+- add comprehensive rustdoc with examples to key handlers ([#31](https://github.com/joshrotenberg/files-sdk-rs/pull/31))
+
 ## [0.1.0] - 2025-01-XX
 
 ### Added
