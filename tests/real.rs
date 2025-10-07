@@ -39,3 +39,11 @@ mod storage;
 // Security features tests
 #[path = "real/security/mod.rs"]
 mod security;
+
+// Logging and audit tests
+#[path = "real/logs/mod.rs"]
+mod logs;
+
+// Messaging tests
+#[path = "real/messages/mod.rs"]
+mod messages;
