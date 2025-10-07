@@ -21,6 +21,14 @@ use std::path::Path;
 use std::sync::Arc;
 use walkdir::WalkDir;
 
+/// Default chunk size for streaming operations (64KB)
+///
+/// This provides a good balance between:
+/// - Memory usage per read operation
+/// - Number of syscalls
+/// - Progress update granularity
+const STREAM_CHUNK_SIZE: usize = 65536; // 64KB
+
 /// Handler for file operations
 ///
 /// Provides methods for downloading, uploading, updating, and deleting files.
@@ -167,21 +175,23 @@ impl FileHandler {
         Ok(())
     }
 
-    /// Download file content to an async stream (for large files)
+    /// Download file content to an async stream
     ///
-    /// This method is more memory-efficient than `download_content()` for large files
-    /// as it streams the data directly to the writer instead of loading it into memory.
+    /// This method is more memory-efficient than [`download_content()`](Self::download_content) for large files
+    /// as it streams the data directly to the writer in chunks instead of loading it into memory.
     ///
     /// # Arguments
     ///
     /// * `remote_path` - Path to the file on Files.com
-    /// * `writer` - An async writer implementing `AsyncWrite`
-    /// * `progress_callback` - Optional callback for progress updates
+    /// * `writer` - An async writer implementing [`tokio::io::AsyncWrite`]
+    /// * `progress_callback` - Optional callback for progress updates (see [`progress`](crate::progress) module)
     ///
     /// # Examples
     ///
+    /// ## Basic streaming download
+    ///
     /// ```rust,no_run
-    /// # use files_sdk::{FilesClient, FileHandler};
+    /// # use files_sdk::{FilesClient, files::FileHandler};
     /// # use tokio::fs::File;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -189,7 +199,56 @@ impl FileHandler {
     /// let handler = FileHandler::new(client);
     ///
     /// let mut file = File::create("downloaded-large-file.tar.gz").await?;
-    /// handler.download_stream("/remote/large-file.tar.gz", &mut file, None).await?;
+    /// handler.download_stream(
+    ///     "/remote/large-file.tar.gz",
+    ///     &mut file,
+    ///     None
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## With progress tracking
+    ///
+    /// ```rust,no_run
+    /// # use files_sdk::{FilesClient, files::FileHandler};
+    /// # use files_sdk::progress::{Progress, ProgressCallback, PrintProgressCallback};
+    /// # use tokio::fs::File;
+    /// # use std::sync::Arc;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = FileHandler::new(client);
+    /// let callback = Arc::new(PrintProgressCallback);
+    ///
+    /// let mut file = File::create("large-file.tar.gz").await?;
+    /// handler.download_stream(
+    ///     "/remote/large-file.tar.gz",
+    ///     &mut file,
+    ///     Some(callback)
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Streaming to any AsyncWrite destination
+    ///
+    /// ```rust,no_run
+    /// # use files_sdk::{FilesClient, files::FileHandler};
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = FileHandler::new(client);
+    ///
+    /// // Download to memory
+    /// let mut buffer = Vec::new();
+    /// handler.download_stream(
+    ///     "/remote/file.txt",
+    ///     &mut buffer,
+    ///     None
+    /// ).await?;
+    ///
+    /// println!("Downloaded {} bytes", buffer.len());
     /// # Ok(())
     /// # }
     /// ```
@@ -365,21 +424,28 @@ impl FileHandler {
         Ok(serde_json::from_value(response)?)
     }
 
-    /// Upload a file from an async stream (for large files)
+    /// Upload a file from an async stream
     ///
-    /// This method is more memory-efficient than `upload_file()` for large files
-    /// as it streams the data instead of loading it entirely into memory.
+    /// This method is more memory-efficient than [`upload_file()`](Self::upload_file) for large files
+    /// as it reads the data in chunks (8KB) instead of loading it entirely into memory.
     ///
     /// # Arguments
     ///
-    /// * `path` - Destination path for the file
-    /// * `reader` - An async reader implementing `AsyncRead`
-    /// * `size` - Optional size of the file in bytes (required for some upload methods)
+    /// * `path` - Destination path for the file on Files.com
+    /// * `reader` - An async reader implementing [`tokio::io::AsyncRead`]
+    /// * `size` - Optional size of the file in bytes (recommended for progress tracking)
+    /// * `progress_callback` - Optional callback for progress updates (see [`progress`](crate::progress) module)
+    ///
+    /// # Returns
+    ///
+    /// Returns a [`FileEntity`] with the uploaded file's metadata.
     ///
     /// # Examples
     ///
+    /// ## Basic streaming upload
+    ///
     /// ```rust,no_run
-    /// # use files_sdk::{FilesClient, FileHandler};
+    /// # use files_sdk::{FilesClient, files::FileHandler};
     /// # use tokio::fs::File;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -388,9 +454,64 @@ impl FileHandler {
     ///
     /// let file = File::open("large-file.tar.gz").await?;
     /// let metadata = file.metadata().await?;
-    /// let size = metadata.len();
+    /// let size = metadata.len() as i64;
     ///
-    /// handler.upload_stream("/uploads/large-file.tar.gz", file, Some(size as i64), None).await?;
+    /// handler.upload_stream(
+    ///     "/uploads/large-file.tar.gz",
+    ///     file,
+    ///     Some(size),
+    ///     None
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## With progress tracking
+    ///
+    /// ```rust,no_run
+    /// # use files_sdk::{FilesClient, files::FileHandler};
+    /// # use files_sdk::progress::{Progress, ProgressCallback, PrintProgressCallback};
+    /// # use tokio::fs::File;
+    /// # use std::sync::Arc;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = FileHandler::new(client);
+    /// let callback = Arc::new(PrintProgressCallback);
+    ///
+    /// let file = File::open("large-file.tar.gz").await?;
+    /// let size = file.metadata().await?.len() as i64;
+    ///
+    /// handler.upload_stream(
+    ///     "/uploads/large-file.tar.gz",
+    ///     file,
+    ///     Some(size),
+    ///     Some(callback)
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Streaming from any AsyncRead source
+    ///
+    /// ```rust,no_run
+    /// # use files_sdk::{FilesClient, files::FileHandler};
+    /// # use std::io::Cursor;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = FileHandler::new(client);
+    ///
+    /// // Upload from memory
+    /// let data = b"file contents";
+    /// let cursor = Cursor::new(data.to_vec());
+    ///
+    /// handler.upload_stream(
+    ///     "/uploads/file.txt",
+    ///     cursor,
+    ///     Some(data.len() as i64),
+    ///     None
+    /// ).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -423,9 +544,18 @@ impl FileHandler {
         // Stage 2: Stream file data to the provided URL with progress tracking
         let _etag = if let Some(upload_uri) = &upload_part.upload_uri {
             // Read the stream into a buffer with progress tracking
-            let mut buffer = Vec::new();
-            let chunk_size = 8192;
-            let mut temp_buffer = vec![0u8; chunk_size];
+            // Note: We read in chunks to provide progress updates, but still buffer
+            // the entire file before upload. This is required by the Files.com API
+            // which expects the full file in a single PUT/POST request.
+
+            // Pre-allocate buffer if size is known for better performance
+            let mut buffer = if let Some(s) = size {
+                Vec::with_capacity(s as usize)
+            } else {
+                Vec::new()
+            };
+
+            let mut temp_buffer = vec![0u8; STREAM_CHUNK_SIZE];
             let total_bytes = size.map(|s| s as u64);
 
             loop {
