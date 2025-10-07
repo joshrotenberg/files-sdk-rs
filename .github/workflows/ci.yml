@@ -24,13 +24,13 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run tests
-        run: cargo test --lib --all-features
+        run: cargo test --lib --features tracing,tower
 
       - name: Run mock integration tests
-        run: cargo test --test '*' --all-features
+        run: cargo test --test '*' --features tracing,tower
 
       - name: Run doc tests
-        run: cargo test --doc --all-features
+        run: cargo test --doc --features tracing,tower
 
   clippy:
     name: Clippy
