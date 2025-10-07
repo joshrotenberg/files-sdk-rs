@@ -123,6 +123,7 @@
 // Core modules
 pub mod client;
 pub mod error;
+pub mod prelude;
 pub mod progress;
 pub mod types;
 pub mod utils;
