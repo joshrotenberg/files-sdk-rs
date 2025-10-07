@@ -422,6 +422,109 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 RUST_LOG=files_sdk=debug cargo run
 ```
 
+## Tower Middleware
+
+The SDK supports composable middleware through [Tower](https://github.com/tower-rs/tower), a library for building robust networking clients and servers. Tower provides retry logic, rate limiting, timeouts, tracing, and more through a composable middleware system.
+
+### Enabling Tower Support
+
+Add the `tower` feature to your `Cargo.toml`:
+
+```toml
+[dependencies]
+files-sdk = { version = "0.3", features = ["tower"] }
+```
+
+### Why Tower?
+
+Instead of implementing custom middleware (retry, rate limiting, etc.) directly in the SDK, we provide tower compatibility so you can:
+
+- ✅ **Compose your own middleware stack** using industry-standard patterns
+- ✅ **Use battle-tested crates** like `tower-http`, `governor`, etc.
+- ✅ **Customize behavior** exactly for your use case
+- ✅ **Share middleware** across different HTTP clients in your application
+
+### Examples
+
+#### Retry with Exponential Backoff
+
+```rust
+use files_sdk::FilesClient;
+use tower::ServiceBuilder;
+use tower_http::retry::RetryLayer;
+use tower_http::classify::ServerErrorsAsFailures;
+
+let client = FilesClient::builder().api_key("key").build()?;
+
+let retrying_client = ServiceBuilder::new()
+    .layer(RetryLayer::new(ServerErrorsAsFailures::default()))
+    .service(client);
+```
+
+#### Rate Limiting
+
+```rust
+use files_sdk::FilesClient;
+use tower::ServiceBuilder;
+use governor::{Quota, RateLimiter};
+use std::num::NonZeroU32;
+
+let client = FilesClient::builder().api_key("key").build()?;
+
+// Create rate limiter (10 requests/second)
+let quota = Quota::per_second(NonZeroU32::new(10).unwrap());
+let limiter = RateLimiter::direct(quota);
+
+// Apply via custom tower layer
+let rate_limited_client = ServiceBuilder::new()
+    .layer(RateLimitLayer::new(limiter))
+    .service(client);
+```
+
+#### Observability (Tracing)
+
+```rust
+use files_sdk::FilesClient;
+use tower::ServiceBuilder;
+use tower_http::trace::TraceLayer;
+
+let client = FilesClient::builder().api_key("key").build()?;
+
+let traced_client = ServiceBuilder::new()
+    .layer(TraceLayer::new_for_http())
+    .service(client);
+
+// All requests are now automatically traced
+```
+
+#### Combining Multiple Middleware
+
+```rust
+use files_sdk::FilesClient;
+use tower::ServiceBuilder;
+use tower_http::{retry::RetryLayer, trace::TraceLayer};
+use std::time::Duration;
+
+let client = FilesClient::builder().api_key("key").build()?;
+
+let production_client = ServiceBuilder::new()
+    .timeout(Duration::from_secs(30))
+    .layer(TraceLayer::new_for_http())
+    .layer(RetryLayer::new(...))
+    .service(client);
+```
+
+### More Information
+
+See the examples directory for complete working examples:
+- `examples/tower_retry.rs` - Retry logic with exponential backoff
+- `examples/tower_rate_limit.rs` - Token bucket rate limiting
+- `examples/tower_observability.rs` - Request/response tracing and metrics
+
+For more on Tower, see:
+- [Tower documentation](https://docs.rs/tower)
+- [tower-http documentation](https://docs.rs/tower-http)
+
 ## API Coverage
 
 | Module | Description |
