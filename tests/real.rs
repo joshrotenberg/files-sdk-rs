@@ -31,3 +31,11 @@ mod admin;
 // Automation features tests
 #[path = "real/automation/mod.rs"]
 mod automation;
+
+// Storage management tests
+#[path = "real/storage/mod.rs"]
+mod storage;
+
+// Security features tests
+#[path = "real/security/mod.rs"]
+mod security;

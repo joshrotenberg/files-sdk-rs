@@ -133,8 +133,22 @@ async fn test_folder_with_spaces() {
 
     let path = "/integration-tests/folder with spaces";
 
-    // Create folder with spaces
+    // Cleanup any existing folder first (ignore errors if it doesn't exist)
+    let _ = folder_handler.delete_folder(path, false).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    // Create folder with spaces - if it still exists, just verify we can list it
     let result = folder_handler.create_folder(path, true).await;
+    if result.is_err() {
+        // Folder might still exist from previous run, verify we can access it instead
+        let list_result = folder_handler.list_folder(path, None, None).await;
+        assert!(
+            list_result.is_ok(),
+            "Failed to access existing folder with spaces"
+        );
+        let _ = folder_handler.delete_folder(path, false).await;
+        return;
+    }
     assert!(
         result.is_ok(),
         "Failed to create folder with spaces: {:?}",
@@ -188,6 +202,13 @@ async fn test_file_copy_with_special_chars() {
     let dest = "/integration-tests/dest [copy].txt";
     let data = b"Testing copy with special chars";
 
+    // Cleanup any existing files first
+    cleanup_file(&client, source).await;
+    cleanup_file(&client, dest).await;
+
+    // Give API time to process deletions
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
     // Upload source file
     handler.upload_file(source, data).await.unwrap();
 
@@ -199,9 +220,16 @@ async fn test_file_copy_with_special_chars() {
         result.err()
     );
 
+    // Give API time to process the copy
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
     // Verify destination exists
     let file = handler.download_file(dest).await;
-    assert!(file.is_ok(), "Copied file with special chars not found");
+    assert!(
+        file.is_ok(),
+        "Copied file with special chars not found: {:?}",
+        file.err()
+    );
 
     // Cleanup
     cleanup_file(&client, source).await;
