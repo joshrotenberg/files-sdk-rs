@@ -6,7 +6,7 @@ rust-version = "1.85"
 authors = ["Josh Rotenberg <joshrotenberg@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "Rust SDK for the Files.com API"
-repository = "https://github.com/joshrotenberg/files-idk-rs"
+repository = "https://github.com/joshrotenberg/files-sdk-rs"
 keywords = ["files", "filescom", "api", "storage", "cloud"]
 categories = ["api-bindings", "web-programming"]
 
