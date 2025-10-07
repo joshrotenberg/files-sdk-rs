@@ -1,25 +1,30 @@
 //! Core sync logic for uploading and downloading files
 
 use anyhow::{Context, Result};
+use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use files_sdk::FilesClient;
 use files_sdk::files::{FileHandler, FolderHandler};
 use files_sdk::progress::ProgressCallback;
+use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{debug, info, warn};
 
 use crate::config::WatchConfig;
 use crate::conflict::{ConflictResolution, ConflictWinner, FileConflict};
+use crate::ignore::IgnoreMatcher;
 use crate::state::SyncState;
 
 /// File syncer
+#[derive(Clone)]
 pub struct Syncer {
     client: FilesClient,
     config: WatchConfig,
     state: SyncState,
+    ignore_matcher: IgnoreMatcher,
 }
 
 impl Syncer {
@@ -27,10 +32,19 @@ impl Syncer {
     pub fn new(client: FilesClient, config: WatchConfig) -> Result<Self> {
         let state = SyncState::load(&config.local_path)?;
 
+        // Load ignore patterns from .filesignore and config
+        let mut ignore_matcher = IgnoreMatcher::from_file(&config.local_path)?;
+
+        // Add patterns from config
+        for pattern in &config.ignore_patterns {
+            ignore_matcher.add_pattern(pattern.clone());
+        }
+
         Ok(Self {
             client,
             config,
             state,
+            ignore_matcher,
         })
     }
 
@@ -75,8 +89,14 @@ impl Syncer {
             })
             .unwrap_or_else(Utc::now);
 
-        // Check if file needs syncing
-        if !self.state.needs_sync(&relative_path, size, modified) {
+        // Calculate file hash for incremental sync
+        let hash = Self::calculate_file_hash(file_path).await?;
+
+        // Check if file needs syncing (with hash comparison)
+        if !self
+            .state
+            .needs_sync(&relative_path, size, modified, Some(&hash))
+        {
             debug!("File already synced: {}", relative_path);
             return Ok(());
         }
@@ -98,12 +118,12 @@ impl Syncer {
             .await
             .with_context(|| format!("Failed to upload: {}", remote_path))?;
 
-        // Record sync in state
+        // Record sync in state (with hash)
         self.state.record_sync(
             relative_path.clone(),
             size,
             modified,
-            None, // TODO: Add hash calculation
+            Some(hash),
             "up".to_string(),
         );
 
@@ -230,43 +250,42 @@ impl Syncer {
     }
 
     /// Recursively sync a directory
-    fn sync_directory<'a>(
-        &'a mut self,
-        dir_path: &'a Path,
+    #[async_recursion]
+    async fn sync_directory(
+        &mut self,
+        dir_path: &Path,
         progress: Option<Arc<dyn ProgressCallback>>,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<PathBuf>>> + 'a>> {
-        Box::pin(async move {
-            let mut synced_files = Vec::new();
+    ) -> Result<Vec<PathBuf>> {
+        let mut synced_files = Vec::new();
 
-            let mut entries = fs::read_dir(dir_path)
-                .await
-                .with_context(|| format!("Failed to read directory: {}", dir_path.display()))?;
+        let mut entries = fs::read_dir(dir_path)
+            .await
+            .with_context(|| format!("Failed to read directory: {}", dir_path.display()))?;
 
-            while let Some(entry) = entries
-                .next_entry()
-                .await
-                .context("Failed to read directory entry")?
-            {
-                let path = entry.path();
+        while let Some(entry) = entries
+            .next_entry()
+            .await
+            .context("Failed to read directory entry")?
+        {
+            let path = entry.path();
 
-                if path.is_dir() {
-                    if let Ok(sub_files) = self.sync_directory(&path, progress.clone()).await {
-                        synced_files.extend(sub_files);
+            if path.is_dir() {
+                if let Ok(sub_files) = self.sync_directory(&path, progress.clone()).await {
+                    synced_files.extend(sub_files);
+                }
+            } else if path.is_file() {
+                match self.sync_file(&path, progress.clone()).await {
+                    Ok(()) => {
+                        synced_files.push(path);
                     }
-                } else if path.is_file() {
-                    match self.sync_file(&path, progress.clone()).await {
-                        Ok(()) => {
-                            synced_files.push(path);
-                        }
-                        Err(e) => {
-                            warn!("Failed to sync {}: {}", path.display(), e);
-                        }
+                    Err(e) => {
+                        warn!("Failed to sync {}: {}", path.display(), e);
                     }
                 }
             }
+        }
 
-            Ok(synced_files)
-        })
+        Ok(synced_files)
     }
 
     /// Handle a file deletion
@@ -291,14 +310,24 @@ impl Syncer {
 
     /// Check if a file should be ignored based on patterns
     fn should_ignore(&self, relative_path: &str) -> bool {
-        for pattern in &self.config.ignore_patterns {
-            if let Ok(glob_pattern) = glob::Pattern::new(pattern) {
-                if glob_pattern.matches(relative_path) {
-                    return true;
-                }
+        self.ignore_matcher.is_ignored(relative_path)
+    }
+
+    /// Calculate SHA256 hash of a file
+    async fn calculate_file_hash(file_path: &Path) -> Result<String> {
+        let mut file = fs::File::open(file_path).await?;
+        let mut hasher = Sha256::new();
+        let mut buffer = vec![0u8; 8192];
+
+        loop {
+            let bytes_read = file.read(&mut buffer).await?;
+            if bytes_read == 0 {
+                break;
             }
+            hasher.update(&buffer[..bytes_read]);
         }
-        false
+
+        Ok(format!("{:x}", hasher.finalize()))
     }
 
     /// Build the full remote path
@@ -480,33 +509,28 @@ impl Syncer {
     }
 
     /// Collect all local files recursively
+    #[async_recursion]
     #[allow(clippy::only_used_in_recursion)]
-    fn collect_local_files<'a>(
-        &'a self,
-        dir: &'a Path,
-        files: &'a mut Vec<PathBuf>,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + 'a>> {
-        Box::pin(async move {
-            let mut entries = fs::read_dir(dir)
-                .await
-                .with_context(|| format!("Failed to read directory: {}", dir.display()))?;
+    async fn collect_local_files(&self, dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
+        let mut entries = fs::read_dir(dir)
+            .await
+            .with_context(|| format!("Failed to read directory: {}", dir.display()))?;
 
-            while let Some(entry) = entries
-                .next_entry()
-                .await
-                .context("Failed to read directory entry")?
-            {
-                let path = entry.path();
+        while let Some(entry) = entries
+            .next_entry()
+            .await
+            .context("Failed to read directory entry")?
+        {
+            let path = entry.path();
 
-                if path.is_dir() {
-                    self.collect_local_files(&path, files).await?;
-                } else if path.is_file() {
-                    files.push(path);
-                }
+            if path.is_dir() {
+                self.collect_local_files(&path, files).await?;
+            } else if path.is_file() {
+                files.push(path);
             }
+        }
 
-            Ok(())
-        })
+        Ok(())
     }
 
     /// Get current state

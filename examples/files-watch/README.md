@@ -18,6 +18,12 @@ A filesystem sync daemon for Files.com, demonstrating the files-sdk-rs streaming
 - **Conflict Resolution**: Newest, largest, or manual resolution strategies
 - **Remote Change Detection**: Scan Files.com for changes
 
+### Phase 3 (Complete)
+- **Daemon Mode**: Run in background monitoring multiple directories
+- **.filesignore Support**: Gitignore-style pattern matching from .filesignore file
+- **Incremental Sync with Hashing**: SHA256-based change detection to avoid re-uploading identical files
+- **Multiple Watch Configs**: Monitor and sync multiple directories simultaneously
+
 ## Installation
 
 ```bash
@@ -48,16 +54,37 @@ cargo run -- init /path/to/local/dir --remote /remote/backup \
   --ignore "*.tmp" --ignore ".git/*" --ignore "node_modules/*"
 ```
 
+Or create a `.filesignore` file in your watched directory:
+
+```
+# .filesignore (gitignore-style syntax)
+*.tmp
+*.log
+.git/
+node_modules/
+target/
+**/*.swp
+```
+
 ### Start syncing
+
+Run in foreground for a single watch config:
 
 ```bash
 cargo run -- start
 ```
 
+Run in daemon mode (all configured watch paths, background monitoring):
+
+```bash
+cargo run -- start --daemon
+```
+
 This will:
 1. Perform an initial sync of all files
-2. Watch for file changes
-3. Automatically upload new/modified files with progress bars
+2. Watch for file changes (and/or poll remote for changes)
+3. Automatically sync new/modified files with progress bars
+4. Use SHA256 hashing to avoid re-uploading identical files
 
 Press Ctrl+C to stop.
 
@@ -118,7 +145,11 @@ resolution = "newest"
 
 ## State Management
 
-Sync state is tracked in `~/.files-watch/state/*.json` to avoid re-uploading unchanged files.
+Sync state is tracked in `~/.files-watch/state/*.json` to avoid re-uploading unchanged files. The state includes:
+- File size and modification time
+- SHA256 hash for accurate change detection
+- Last sync timestamp
+- Sync direction
 
 ## Example Session
 
@@ -151,11 +182,51 @@ Watching for changes (Ctrl+C to stop)...
 ✓ report.pdf
 ```
 
-## Limitations
+## Advanced Features
 
-- Single watch config at a time (Phase 3)
-- No daemon mode (Phase 3)
-- No .filesignore support (Phase 3)
+### Daemon Mode
+
+In daemon mode, files-watch can monitor multiple directories simultaneously, each with its own sync direction and ignore patterns:
+
+```toml
+# ~/.files-watch/config.toml
+[[watch]]
+local_path = "/home/user/documents"
+remote_path = "/backup/documents"
+direction = "up"
+
+[[watch]]
+local_path = "/home/user/downloads"
+remote_path = "/backup/downloads"
+direction = "down"
+
+[[watch]]
+local_path = "/home/user/shared"
+remote_path = "/backup/shared"
+direction = "both"
+ignore_patterns = ["*.tmp"]
+
+[sync]
+check_interval_secs = 60  # Poll remote every 60s for down/both
+```
+
+### Incremental Sync
+
+Files are hashed with SHA256 to detect actual content changes, avoiding unnecessary uploads when only timestamps differ:
+
+```bash
+# First sync - uploads file and stores hash
+$ echo "hello" > test.txt
+✓ test.txt (hash: 2cf24dba...)
+
+# Touch file (change mtime but not content)
+$ touch test.txt
+# No upload - hash unchanged!
+
+# Modify content
+$ echo "hello world" > test.txt
+✓ test.txt (hash: b94d27b9...)  # Re-uploaded
+```
 
 ## SDK Features Demonstrated
 
