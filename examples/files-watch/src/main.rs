@@ -2,14 +2,11 @@
 
 mod cli;
 mod commands;
-mod config;
-mod conflict;
 mod daemon;
-mod ignore;
-mod progress;
-mod state;
 mod syncer;
-mod watcher;
+
+// Re-export from lib
+use files_watch::{config, conflict, ignore, progress, state, watcher};
 
 use anyhow::Result;
 use clap::Parser;

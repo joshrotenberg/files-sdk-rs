@@ -244,6 +244,26 @@ $ echo "hello world" > test.txt
 - `indicatif` - Progress bars
 - `serde` - Config/state serialization
 
+## Testing
+
+The project includes comprehensive unit and integration tests:
+
+```bash
+# Run all tests (unit + integration)
+cargo test
+
+# Run only integration tests
+cargo test --test integration_tests
+
+# Run with output
+cargo test -- --nocapture
+```
+
+**Test Coverage**:
+- 11 unit tests (conflict resolution, ignore patterns, state management)
+- 15 integration tests (config, serialization, file operations)
+- All tests passing with no warnings
+
 ## Development
 
 Run with debug logging:
@@ -252,7 +272,37 @@ Run with debug logging:
 RUST_LOG=debug cargo run -- start -v
 ```
 
+Build for release:
+
+```bash
+cargo build --release
+./target/release/files-watch --help
+```
+
+## Architecture
+
+```
+src/
+├── lib.rs           # Public library interface
+├── main.rs          # CLI entry point
+├── cli.rs           # Command-line argument parsing
+├── commands/        # Command implementations
+│   ├── init.rs      # Initialize watch config
+│   ├── start.rs     # Start watching (foreground/daemon)
+│   ├── sync.rs      # One-time sync
+│   ├── status.rs    # Show sync status
+│   └── list.rs      # List configurations
+├── config.rs        # Configuration management
+├── state.rs         # Sync state persistence
+├── syncer.rs        # Core sync logic
+├── daemon.rs        # Multi-config daemon mode
+├── watcher.rs       # Filesystem event monitoring
+├── ignore.rs        # Pattern matching (.filesignore)
+├── conflict.rs      # Conflict resolution
+└── progress.rs      # Progress tracking
+```
+
 ## Related
 
-- Issue #65: Full specification for files-watch
+- Issue #65: Full specification for files-watch (all phases complete)
 - Issue #61: Streaming API (completed)

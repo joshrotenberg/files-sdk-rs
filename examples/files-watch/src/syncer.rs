@@ -3,9 +3,9 @@
 use anyhow::{Context, Result};
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
-use files_sdk::FilesClient;
 use files_sdk::files::{FileHandler, FolderHandler};
 use files_sdk::progress::ProgressCallback;
+use files_sdk::FilesClient;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
