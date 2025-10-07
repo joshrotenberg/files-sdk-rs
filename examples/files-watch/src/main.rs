@@ -3,6 +3,7 @@
 mod cli;
 mod commands;
 mod config;
+mod conflict;
 mod progress;
 mod state;
 mod syncer;

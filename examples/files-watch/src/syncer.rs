@@ -1,16 +1,18 @@
-//! Core sync logic for uploading files
+//! Core sync logic for uploading and downloading files
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use files_sdk::FilesClient;
-use files_sdk::files::FileHandler;
+use files_sdk::files::{FileHandler, FolderHandler};
 use files_sdk::progress::ProgressCallback;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
+use tokio::io::AsyncWriteExt;
 use tracing::{debug, info, warn};
 
 use crate::config::WatchConfig;
+use crate::conflict::{ConflictResolution, ConflictWinner, FileConflict};
 use crate::state::SyncState;
 
 /// File syncer
@@ -108,6 +110,77 @@ impl Syncer {
         self.state.save()?;
 
         info!("Synced: {}", relative_path);
+
+        Ok(())
+    }
+
+    /// Download a single file from Files.com
+    pub async fn download_file(
+        &mut self,
+        remote_path: &str,
+        local_path: &Path,
+        size: i64,
+        mtime: DateTime<Utc>,
+        progress: Option<Arc<dyn ProgressCallback>>,
+    ) -> Result<()> {
+        info!("Downloading: {} -> {}", remote_path, local_path.display());
+
+        // Create parent directories if needed
+        if let Some(parent) = local_path.parent() {
+            fs::create_dir_all(parent)
+                .await
+                .with_context(|| format!("Failed to create directory: {}", parent.display()))?;
+        }
+
+        // Download using streaming API
+        let handler = FileHandler::new(self.client.clone());
+        let mut file = fs::File::create(local_path)
+            .await
+            .with_context(|| format!("Failed to create local file: {}", local_path.display()))?;
+
+        handler
+            .download_stream(remote_path, &mut file, progress)
+            .await
+            .with_context(|| format!("Failed to download: {}", remote_path))?;
+
+        file.flush()
+            .await
+            .context("Failed to flush downloaded file")?;
+
+        // Update file modification time to match remote
+        let system_time = std::time::SystemTime::from(mtime);
+        let metadata = file.metadata().await?;
+        let permissions = metadata.permissions();
+        drop(file); // Close file before setting times
+
+        filetime::set_file_mtime(
+            local_path,
+            filetime::FileTime::from_system_time(system_time),
+        )
+        .ok(); // Ignore errors - not critical
+
+        // Restore permissions
+        fs::set_permissions(local_path, permissions).await.ok();
+
+        // Get relative path for state tracking
+        let relative_path = local_path
+            .strip_prefix(&self.config.local_path)
+            .unwrap_or(local_path)
+            .to_string_lossy()
+            .to_string();
+
+        // Record sync in state
+        self.state.record_sync(
+            relative_path.clone(),
+            size as u64,
+            mtime,
+            None,
+            "down".to_string(),
+        );
+
+        self.state.save()?;
+
+        info!("Downloaded: {}", relative_path);
 
         Ok(())
     }
@@ -232,6 +305,208 @@ impl Syncer {
     fn build_remote_path(&self, relative_path: &str) -> String {
         let remote_base = self.config.remote_path.trim_end_matches('/');
         format!("{}/{}", remote_base, relative_path)
+    }
+
+    /// Scan remote directory for changes
+    pub async fn scan_remote(&mut self) -> Result<Vec<(String, i64, DateTime<Utc>)>> {
+        let folder_handler = FolderHandler::new(self.client.clone());
+
+        let mut remote_files = Vec::new();
+        let mut cursor = None;
+
+        // List all files in remote directory (with pagination)
+        loop {
+            let (files, pagination) = folder_handler
+                .list_folder(&self.config.remote_path, None, cursor.clone())
+                .await
+                .with_context(|| {
+                    format!(
+                        "Failed to list remote directory: {}",
+                        self.config.remote_path
+                    )
+                })?;
+
+            for file in files {
+                // Only process actual files, not directories
+                if file.file_type.as_deref() == Some("file") {
+                    if let Some(path) = &file.path {
+                        let size = file.size.unwrap_or(0);
+
+                        // Parse mtime
+                        let mtime = file
+                            .mtime
+                            .as_ref()
+                            .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+                            .map(|dt| dt.with_timezone(&Utc))
+                            .unwrap_or_else(Utc::now);
+
+                        remote_files.push((path.clone(), size, mtime));
+                    }
+                }
+            }
+
+            // Check for next page
+            if pagination.cursor_next.is_none() {
+                break;
+            }
+            cursor = pagination.cursor_next;
+        }
+
+        Ok(remote_files)
+    }
+
+    /// Perform bidirectional sync
+    pub async fn sync_bidirectional(
+        &mut self,
+        progress: Option<Arc<dyn ProgressCallback>>,
+        conflict_resolution: ConflictResolution,
+    ) -> Result<()> {
+        info!("Starting bidirectional sync");
+
+        // Scan remote files
+        let remote_files = self.scan_remote().await?;
+
+        // Build a map of remote files by relative path
+        let remote_base = self.config.remote_path.trim_end_matches('/');
+        let mut remote_map = std::collections::HashMap::new();
+
+        for (remote_path, size, mtime) in remote_files {
+            if let Some(relative) = remote_path.strip_prefix(remote_base) {
+                let relative = relative.trim_start_matches('/');
+                remote_map.insert(relative.to_string(), (size, mtime));
+            }
+        }
+
+        // Walk local directory
+        let mut local_files = Vec::new();
+        self.collect_local_files(&self.config.local_path.clone(), &mut local_files)
+            .await?;
+
+        // Process each local file
+        for local_path in &local_files {
+            let relative_path = local_path
+                .strip_prefix(&self.config.local_path)
+                .context("File not in watched directory")?
+                .to_string_lossy()
+                .to_string();
+
+            if self.should_ignore(&relative_path) {
+                continue;
+            }
+
+            let metadata = fs::metadata(local_path).await?;
+            let local_size = metadata.len();
+            let local_mtime = metadata
+                .modified()
+                .ok()
+                .and_then(|t| {
+                    DateTime::from_timestamp(
+                        t.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64,
+                        0,
+                    )
+                })
+                .unwrap_or_else(Utc::now);
+
+            if let Some((remote_size, remote_mtime)) = remote_map.get(&relative_path) {
+                // File exists on both sides - check for conflict
+                if local_mtime != *remote_mtime || local_size != *remote_size as u64 {
+                    let conflict = FileConflict {
+                        path: relative_path.clone(),
+                        local_size,
+                        local_mtime,
+                        remote_size: *remote_size,
+                        remote_mtime: *remote_mtime,
+                    };
+
+                    match conflict.resolve(conflict_resolution) {
+                        ConflictWinner::Local => {
+                            // Upload local version
+                            info!(
+                                "Conflict resolved: uploading local version of {}",
+                                relative_path
+                            );
+                            self.sync_file(local_path, progress.clone()).await?;
+                        }
+                        ConflictWinner::Remote => {
+                            // Download remote version
+                            info!(
+                                "Conflict resolved: downloading remote version of {}",
+                                relative_path
+                            );
+                            let remote_path = self.build_remote_path(&relative_path);
+                            self.download_file(
+                                &remote_path,
+                                local_path,
+                                *remote_size,
+                                *remote_mtime,
+                                progress.clone(),
+                            )
+                            .await?;
+                        }
+                        ConflictWinner::Skip => {
+                            warn!("Conflict detected, skipping: {}", relative_path);
+                        }
+                    }
+                }
+                // Remove from map - we've processed it
+                remote_map.remove(&relative_path);
+            } else {
+                // File only exists locally - upload it
+                self.sync_file(local_path, progress.clone()).await?;
+            }
+        }
+
+        // Download files that only exist remotely
+        for (relative_path, (remote_size, remote_mtime)) in remote_map {
+            if self.should_ignore(&relative_path) {
+                continue;
+            }
+
+            let local_path = self.config.local_path.join(&relative_path);
+            let remote_path = self.build_remote_path(&relative_path);
+
+            self.download_file(
+                &remote_path,
+                &local_path,
+                remote_size,
+                remote_mtime,
+                progress.clone(),
+            )
+            .await?;
+        }
+
+        info!("Bidirectional sync complete");
+        Ok(())
+    }
+
+    /// Collect all local files recursively
+    #[allow(clippy::only_used_in_recursion)]
+    fn collect_local_files<'a>(
+        &'a self,
+        dir: &'a Path,
+        files: &'a mut Vec<PathBuf>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + 'a>> {
+        Box::pin(async move {
+            let mut entries = fs::read_dir(dir)
+                .await
+                .with_context(|| format!("Failed to read directory: {}", dir.display()))?;
+
+            while let Some(entry) = entries
+                .next_entry()
+                .await
+                .context("Failed to read directory entry")?
+            {
+                let path = entry.path();
+
+                if path.is_dir() {
+                    self.collect_local_files(&path, files).await?;
+                } else if path.is_file() {
+                    files.push(path);
+                }
+            }
+
+            Ok(())
+        })
     }
 
     /// Get current state

@@ -7,6 +7,7 @@ use std::env;
 use std::path::PathBuf;
 
 use crate::config::Config;
+use crate::conflict::ConflictResolution;
 use crate::syncer::Syncer;
 
 pub async fn handle_sync(path: PathBuf, direction: Option<String>, full: bool) -> Result<()> {
@@ -55,11 +56,66 @@ pub async fn handle_sync(path: PathBuf, direction: Option<String>, full: bool) -
     println!("  Direction: {}", watch_config.direction);
     println!();
 
-    // Sync all files
-    let synced = syncer.sync_all(None).await?;
+    // Perform sync based on direction
+    match watch_config.direction.as_str() {
+        "up" => {
+            // Upload only
+            let synced = syncer.sync_all(None).await?;
+            println!();
+            println!("{} {} files uploaded", "✓".green(), synced.len());
+        }
+        "down" => {
+            // Download only
+            println!("{}", "Scanning remote directory...".cyan());
+            let remote_files = syncer.scan_remote().await?;
 
-    println!();
-    println!("{} {} files synced", "✓".green(), synced.len());
+            println!(
+                "{}",
+                format!("Found {} remote files", remote_files.len()).cyan()
+            );
+
+            let mut downloaded = 0;
+            for (remote_path, size, mtime) in remote_files {
+                // Get relative path
+                let remote_base = watch_config.remote_path.trim_end_matches('/');
+                if let Some(relative) = remote_path.strip_prefix(remote_base) {
+                    let relative = relative.trim_start_matches('/');
+                    let local_path = watch_config.local_path.join(relative);
+
+                    // Download file
+                    if let Err(e) = syncer
+                        .download_file(&remote_path, &local_path, size, mtime, None)
+                        .await
+                    {
+                        eprintln!("{} Failed to download {}: {}", "✗".red(), relative, e);
+                    } else {
+                        downloaded += 1;
+                    }
+                }
+            }
+
+            println!();
+            println!("{} {} files downloaded", "✓".green(), downloaded);
+        }
+        "both" => {
+            // Bidirectional sync
+            let conflict_resolution = ConflictResolution::from_str(&config.conflict.resolution)
+                .unwrap_or(ConflictResolution::Newest);
+
+            println!(
+                "{}",
+                format!("Conflict resolution: {}", config.conflict.resolution).cyan()
+            );
+
+            syncer.sync_bidirectional(None, conflict_resolution).await?;
+
+            println!();
+            println!("{} Bidirectional sync complete", "✓".green());
+        }
+        _ => {
+            anyhow::bail!("Invalid direction: {}", watch_config.direction);
+        }
+    }
 
     Ok(())
 }

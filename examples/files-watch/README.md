@@ -2,14 +2,21 @@
 
 A filesystem sync daemon for Files.com, demonstrating the files-sdk-rs streaming capabilities.
 
-## Features (Phase 1)
+## Features
 
+### Phase 1 (Complete)
 - **Filesystem Watching**: Real-time monitoring of directory changes
 - **Upload-only Sync**: Automatically sync local changes to Files.com
 - **Progress Tracking**: Visual progress bars for file uploads
 - **State Management**: Track synced files to avoid redundant uploads
 - **Pattern Ignoring**: Skip files matching glob patterns
 - **Incremental Sync**: Only upload changed files
+
+### Phase 2 (Complete)
+- **Download Sync**: Sync from Files.com → Local
+- **Bidirectional Sync**: Two-way sync with conflict resolution
+- **Conflict Resolution**: Newest, largest, or manual resolution strategies
+- **Remote Change Detection**: Scan Files.com for changes
 
 ## Installation
 
@@ -73,7 +80,14 @@ cargo run -- list
 Perform a one-time sync without watching:
 
 ```bash
+# Upload only (default)
 cargo run -- sync /path/to/local/dir
+
+# Download only
+cargo run -- sync /path/to/local/dir --direction down
+
+# Bidirectional sync with conflict resolution
+cargo run -- sync /path/to/local/dir --direction both
 ```
 
 Full sync (ignore state, sync all files):
@@ -137,15 +151,11 @@ Watching for changes (Ctrl+C to stop)...
 ✓ report.pdf
 ```
 
-## Phase 1 Limitations
+## Limitations
 
-- Upload-only (no download or bidirectional sync yet)
-- Single watch config at a time
-- No daemon mode
-- No remote change detection
-- Basic conflict resolution
-
-These features will be added in Phases 2-4.
+- Single watch config at a time (Phase 3)
+- No daemon mode (Phase 3)
+- No .filesignore support (Phase 3)
 
 ## SDK Features Demonstrated
 
