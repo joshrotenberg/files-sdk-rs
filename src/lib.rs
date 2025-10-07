@@ -88,6 +88,32 @@
 //! # }
 //! ```
 //!
+//! ### Client-Side Rate Limiting
+//!
+//! Prevent hitting API rate limits by configuring client-side rate limiting:
+//!
+//! - **Token bucket algorithm**: Allows bursts while maintaining average rate
+//! - **Automatic throttling**: Requests wait until tokens are available
+//! - **Prevents 429 errors**: Proactive rather than reactive
+//!
+//! ```rust,no_run
+//! use files_sdk::FilesClient;
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Limit to 10 requests per second
+//! let client = FilesClient::builder()
+//!     .api_key("your-api-key")
+//!     .rate_limit(10)
+//!     .build()?;
+//!
+//! // No rate limiting (default)
+//! let client_unlimited = FilesClient::builder()
+//!     .api_key("your-api-key")
+//!     .build()?;
+//! # Ok(())
+//! # }
+//! ```
+//!
 //! ### File Upload (Two-Stage Process)
 //!
 //! Files.com uses a two-stage upload process:

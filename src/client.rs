@@ -7,10 +7,12 @@
 //! both typed and untyped API interactions.
 
 use crate::{FilesError, Result};
+use governor::{Quota, RateLimiter};
 use reqwest::Client;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
 use serde::Serialize;
+use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -51,6 +53,7 @@ pub struct FilesClientBuilder {
     timeout: Duration,
     max_retries: u32,
     retry_base_delay: Duration,
+    rate_limit: Option<u64>,
 }
 
 impl Default for FilesClientBuilder {
@@ -61,6 +64,7 @@ impl Default for FilesClientBuilder {
             timeout: Duration::from_secs(60),
             max_retries: 3,
             retry_base_delay: Duration::from_secs(1),
+            rate_limit: None,
         }
     }
 }
@@ -128,6 +132,32 @@ impl FilesClientBuilder {
         self
     }
 
+    /// Sets client-side rate limiting in requests per second
+    ///
+    /// Applies a token bucket rate limiter to prevent exceeding API rate limits.
+    /// This is enforced before requests are sent, preventing 429 errors.
+    ///
+    /// # Arguments
+    ///
+    /// * `requests_per_second` - Maximum requests per second (default: None/unlimited)
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use files_sdk::FilesClient;
+    ///
+    /// // Limit to 10 requests per second
+    /// let client = FilesClient::builder()
+    ///     .api_key("your-api-key")
+    ///     .rate_limit(10)
+    ///     .build()?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn rate_limit(mut self, requests_per_second: u64) -> Self {
+        self.rate_limit = Some(requests_per_second);
+        self
+    }
+
     /// Builds the FilesClient instance
     ///
     /// # Errors
@@ -145,25 +175,32 @@ impl FilesClientBuilder {
             .build()
             .map_err(|e| FilesError::ConfigError(format!("Failed to build HTTP client: {}", e)))?;
 
-        // Build client with retry middleware if retries are enabled
-        let client = if self.max_retries > 0 {
+        // Build client with retry middleware if enabled
+        let mut client_builder = ClientBuilder::new(reqwest_client);
+
+        if self.max_retries > 0 {
             let retry_policy = ExponentialBackoff::builder()
                 .retry_bounds(self.retry_base_delay, Duration::from_secs(60))
                 .build_with_max_retries(self.max_retries);
 
-            ClientBuilder::new(reqwest_client)
-                .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-                .build()
-        } else {
-            // No retries - just wrap reqwest client
-            ClientBuilder::new(reqwest_client).build()
-        };
+            client_builder =
+                client_builder.with(RetryTransientMiddleware::new_with_policy(retry_policy));
+        }
+
+        let client = client_builder.build();
+
+        // Create rate limiter if configured
+        let rate_limiter = self
+            .rate_limit
+            .and_then(|rate| NonZeroU32::new(rate as u32))
+            .map(|rate_nz| Arc::new(RateLimiter::direct(Quota::per_second(rate_nz))));
 
         Ok(FilesClient {
             inner: Arc::new(FilesClientInner {
                 api_key,
                 base_url: self.base_url,
                 client,
+                rate_limiter,
             }),
         })
     }
@@ -175,6 +212,15 @@ pub(crate) struct FilesClientInner {
     pub(crate) api_key: String,
     pub(crate) base_url: String,
     pub(crate) client: ClientWithMiddleware,
+    pub(crate) rate_limiter: Option<
+        Arc<
+            RateLimiter<
+                governor::state::direct::NotKeyed,
+                governor::state::InMemoryState,
+                governor::clock::DefaultClock,
+            >,
+        >,
+    >,
 }
 
 /// Files.com API client
@@ -209,6 +255,13 @@ impl FilesClient {
         FilesClientBuilder::default()
     }
 
+    /// Checks rate limiter and waits if necessary
+    async fn check_rate_limit(&self) {
+        if let Some(limiter) = &self.inner.rate_limiter {
+            limiter.until_ready().await;
+        }
+    }
+
     /// Performs a GET request to the Files.com API
     ///
     /// # Arguments
@@ -220,6 +273,8 @@ impl FilesClient {
     /// Returns an error if the request fails or returns a non-success status code
     #[cfg_attr(feature = "tracing", instrument(skip(self), fields(method = "GET")))]
     pub async fn get_raw(&self, path: &str) -> Result<serde_json::Value> {
+        self.check_rate_limit().await;
+
         let url = format!("{}{}", self.inner.base_url, path);
 
         #[cfg(feature = "tracing")]
@@ -255,6 +310,8 @@ impl FilesClient {
         instrument(skip(self, body), fields(method = "POST"))
     )]
     pub async fn post_raw<T: Serialize>(&self, path: &str, body: T) -> Result<serde_json::Value> {
+        self.check_rate_limit().await;
+
         let url = format!("{}{}", self.inner.base_url, path);
 
         #[cfg(feature = "tracing")]
@@ -294,6 +351,8 @@ impl FilesClient {
         instrument(skip(self, body), fields(method = "PATCH"))
     )]
     pub async fn patch_raw<T: Serialize>(&self, path: &str, body: T) -> Result<serde_json::Value> {
+        self.check_rate_limit().await;
+
         let url = format!("{}{}", self.inner.base_url, path);
 
         #[cfg(feature = "tracing")]
@@ -329,6 +388,8 @@ impl FilesClient {
     /// Returns an error if the request fails or returns a non-success status code
     #[cfg_attr(feature = "tracing", instrument(skip(self), fields(method = "DELETE")))]
     pub async fn delete_raw(&self, path: &str) -> Result<serde_json::Value> {
+        self.check_rate_limit().await;
+
         let url = format!("{}{}", self.inner.base_url, path);
 
         #[cfg(feature = "tracing")]
@@ -360,6 +421,8 @@ impl FilesClient {
     ///
     /// Returns an error if the request fails or returns a non-success status code
     pub async fn post_form<T: Serialize>(&self, path: &str, form: T) -> Result<serde_json::Value> {
+        self.check_rate_limit().await;
+
         let url = format!("{}{}", self.inner.base_url, path);
 
         let response = self
