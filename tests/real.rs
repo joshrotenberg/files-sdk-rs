@@ -47,3 +47,15 @@ mod logs;
 // Messaging tests
 #[path = "real/messages/mod.rs"]
 mod messages;
+
+// AS2 protocol tests
+#[path = "real/as2/mod.rs"]
+mod as2;
+
+// Developer resources tests
+#[path = "real/developers/mod.rs"]
+mod developers;
+
+// Integration tests
+#[path = "real/integrations/mod.rs"]
+mod integrations;
