@@ -479,15 +479,159 @@ if let Some(seconds) = error.retry_after() {
 
 ## Testing
 
+The SDK provides comprehensive testing examples to help you test code that uses Files.com without hitting the real API.
+
+### Running SDK Tests
+
 ```bash
 # Unit tests
 cargo test --lib
 
-# Mock tests
-cargo test --test mock
-
 # Integration tests (requires FILES_API_KEY)
 FILES_API_KEY=your_key cargo test --test real --features integration-tests
+```
+
+### Testing Your Code
+
+See `examples/testing/` for complete examples of different testing approaches:
+
+#### 1. Trait-Based Mocking with mockall
+
+Create mockable traits for your file operations:
+
+```rust
+use mockall::automock;
+
+#[cfg_attr(test, automock)]
+pub trait FileUploader {
+    fn upload(&self, path: &str, data: &[u8]) -> Result<(), String>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockall::predicate::*;
+
+    #[test]
+    fn test_upload_called() {
+        let mut mock = MockFileUploader::new();
+        
+        mock.expect_upload()
+            .with(eq("/test.txt"), eq(b"data".as_slice()))
+            .times(1)
+            .returning(|_, _| Ok(()));
+        
+        // Test your code that uses the mock
+        assert!(mock.upload("/test.txt", b"data").is_ok());
+    }
+}
+```
+
+**Run:** `cargo test --example mockall_example`
+
+#### 2. Test Doubles (Hand-Written Fakes)
+
+Build custom test doubles that track state:
+
+```rust
+use std::sync::{Arc, Mutex};
+
+#[derive(Clone)]
+pub struct FakeFilesClient {
+    uploaded_files: Arc<Mutex<Vec<String>>>,
+}
+
+impl FakeFilesClient {
+    pub fn new() -> Self {
+        Self {
+            uploaded_files: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+    
+    pub fn upload(&self, path: &str, data: &[u8]) -> Result<(), String> {
+        self.uploaded_files.lock().unwrap().push(path.to_string());
+        Ok(())
+    }
+    
+    pub fn get_uploaded_files(&self) -> Vec<String> {
+        self.uploaded_files.lock().unwrap().clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tracks_uploads() {
+        let fake = FakeFilesClient::new();
+        fake.upload("/file1.txt", b"data").unwrap();
+        fake.upload("/file2.txt", b"data").unwrap();
+        
+        assert_eq!(fake.get_uploaded_files().len(), 2);
+    }
+}
+```
+
+**Run:** `cargo test --example test_doubles_example`
+
+#### 3. HTTP Mocking with wiremock
+
+Test actual HTTP interactions with a mock server:
+
+```rust
+use wiremock::{Mock, MockServer, ResponseTemplate};
+use wiremock::matchers::{method, path, header};
+use files_sdk::FilesClient;
+
+#[tokio::test]
+async fn test_with_mock_server() {
+    // Start mock server
+    let mock_server = MockServer::start().await;
+    
+    // Configure mock response
+    Mock::given(method("GET"))
+        .and(path("/files/test.txt"))
+        .and(header("X-FilesAPI-Key", "test-key"))
+        .respond_with(ResponseTemplate::new(200)
+            .set_body_json(serde_json::json!({
+                "path": "/test.txt",
+                "size": 1024
+            })))
+        .mount(&mock_server)
+        .await;
+    
+    // Create client pointing to mock server
+    let client = FilesClient::builder()
+        .api_key("test-key")
+        .base_url(mock_server.uri())
+        .build()
+        .unwrap();
+    
+    // Test your code
+    let result = client.get_raw("/files/test.txt").await;
+    assert!(result.is_ok());
+}
+```
+
+**Run:** `cargo test --example wiremock_example`
+
+### Which Approach to Use?
+
+| Approach | Best For | Pros | Cons |
+|----------|----------|------|------|
+| **mockall** | Unit tests, verifying method calls | Auto-generated mocks, expectation verification | Requires trait abstraction |
+| **Test Doubles** | Integration tests, state verification | No dependencies, full control | More code to maintain |
+| **wiremock** | HTTP-level testing, API contract testing | Tests real HTTP flow, verifies headers/body | Slower, more setup |
+
+### Development Dependencies
+
+Add to your `Cargo.toml` for testing:
+
+```toml
+[dev-dependencies]
+mockall = "0.13"      # For trait-based mocking
+wiremock = "0.6"      # For HTTP mocking (already included in SDK)
 ```
 
 ## License

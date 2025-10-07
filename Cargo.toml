@@ -27,6 +27,8 @@ async-stream = "0.3"
 walkdir = "2.5"
 
 [dev-dependencies]
+mockall = "0.13"
+proptest = "1.5"
 tokio-test = "0.4"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 wiremock = "0.6"
