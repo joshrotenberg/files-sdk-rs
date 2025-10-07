@@ -5,6 +5,7 @@ use colored::Colorize;
 use files_sdk::FilesClient;
 use std::env;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use crate::config::Config;
 use crate::conflict::ConflictResolution;

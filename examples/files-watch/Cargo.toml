@@ -3,6 +3,14 @@ name = "files-watch"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "files_watch"
+path = "src/lib.rs"
+
+[[bin]]
+name = "files-watch"
+path = "src/main.rs"
+
 [dependencies]
 files-sdk = { path = "../.." }
 clap = { version = "4", features = ["derive"] }
@@ -23,3 +31,7 @@ chrono = { version = "0.4", features = ["serde"] }
 dirs = "5"
 filetime = "0.2"
 async-recursion = "1.1"
+
+[dev-dependencies]
+tempfile = "3"
+walkdir = "2"

@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use std::str::FromStr;
 
 /// Represents a file that exists in both local and remote locations
 #[derive(Debug, Clone)]
@@ -25,9 +26,10 @@ pub enum ConflictResolution {
     Manual,
 }
 
-impl ConflictResolution {
-    /// Parse resolution from string
-    pub fn from_str(s: &str) -> Result<Self> {
+impl FromStr for ConflictResolution {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "newest" => Ok(Self::Newest),
             "largest" => Ok(Self::Largest),
