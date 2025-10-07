@@ -49,70 +49,34 @@
 //!     .api_key("your-api-key")
 //!     .build()?;
 //!
-//! // Custom configuration with retries
+//! // Custom configuration
 //! let client = FilesClient::builder()
 //!     .api_key("your-api-key")
 //!     .base_url("https://app.files.com/api/rest/v1".to_string())
 //!     .timeout(std::time::Duration::from_secs(60))
-//!     .max_retries(5)  // Retry up to 5 times (default: 3)
-//!     .retry_base_delay(std::time::Duration::from_secs(2))  // Start with 2s delay
 //!     .build()?;
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! ### Automatic Retry Logic
+//! ### Middleware with Tower (Optional)
 //!
-//! The SDK automatically retries transient errors with exponential backoff:
+//! For retry logic, rate limiting, and observability, use the optional `tower` feature:
 //!
-//! - **Retried errors**: 429 (Rate Limited), 500, 502, 503, 504
-//! - **Backoff strategy**: Exponential with jitter (1s → 2s → 4s → ...)
-//! - **Configurable**: Set `max_retries(0)` to disable
-//!
-//! ```rust,no_run
-//! use files_sdk::FilesClient;
-//!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // With retries (default)
-//! let client = FilesClient::builder()
-//!     .api_key("your-api-key")
-//!     .max_retries(3)
-//!     .build()?;
-//!
-//! // Disable retries
-//! let client_no_retry = FilesClient::builder()
-//!     .api_key("your-api-key")
-//!     .max_retries(0)
-//!     .build()?;
-//! # Ok(())
-//! # }
+//! ```toml
+//! [dependencies]
+//! files-sdk = { version = "0.3", features = ["tower"] }
+//! tower = "0.5"
+//! tower-http = { version = "0.6", features = ["retry", "trace"] }
 //! ```
 //!
-//! ### Client-Side Rate Limiting
+//! See the `tower_*` examples in the examples directory for complete working code.
 //!
-//! Prevent hitting API rate limits by configuring client-side rate limiting:
-//!
-//! - **Token bucket algorithm**: Allows bursts while maintaining average rate
-//! - **Automatic throttling**: Requests wait until tokens are available
-//! - **Prevents 429 errors**: Proactive rather than reactive
-//!
-//! ```rust,no_run
-//! use files_sdk::FilesClient;
-//!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Limit to 10 requests per second
-//! let client = FilesClient::builder()
-//!     .api_key("your-api-key")
-//!     .rate_limit(10)
-//!     .build()?;
-//!
-//! // No rate limiting (default)
-//! let client_unlimited = FilesClient::builder()
-//!     .api_key("your-api-key")
-//!     .build()?;
-//! # Ok(())
-//! # }
-//! ```
+//! **Benefits of Tower middleware:**
+//! - **Composable**: Mix and match middleware layers
+//! - **Battle-tested**: Use proven crates from the tower ecosystem
+//! - **Customizable**: Full control over retry, rate limiting, tracing
+//! - **Reusable**: Share middleware across different HTTP clients
 //!
 //! ### File Upload (Two-Stage Process)
 //!
