@@ -2,7 +2,9 @@
 
 use crate::real::*;
 use files_sdk::FileHandler;
+use files_sdk::progress::{Progress, ProgressCallback};
 use std::io::Write;
+use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "integration-tests")]
 #[tokio::test]
@@ -25,7 +27,7 @@ async fn test_upload_stream_small_file() {
 
     // Upload using streaming
     let result = handler
-        .upload_stream(test_path, cursor, Some(test_content.len() as i64))
+        .upload_stream(test_path, cursor, Some(test_content.len() as i64), None)
         .await;
 
     assert!(
@@ -69,7 +71,7 @@ async fn test_upload_stream_with_tokio_file() {
 
     // Upload using streaming
     let result = handler
-        .upload_stream(test_path, file, Some(size as i64))
+        .upload_stream(test_path, file, Some(size as i64), None)
         .await;
 
     assert!(
@@ -106,7 +108,7 @@ async fn test_download_stream_small_file() {
 
     // Download using streaming to a Vec
     let mut buffer = Vec::new();
-    let result = handler.download_stream(test_path, &mut buffer).await;
+    let result = handler.download_stream(test_path, &mut buffer, None).await;
 
     assert!(
         result.is_ok(),
@@ -140,7 +142,7 @@ async fn test_download_stream_to_file() {
 
     // Download using streaming to a file
     let mut file = tokio::fs::File::create(local_path).await.unwrap();
-    let result = handler.download_stream(test_path, &mut file).await;
+    let result = handler.download_stream(test_path, &mut file, None).await;
 
     assert!(
         result.is_ok(),
@@ -184,7 +186,9 @@ async fn test_upload_stream_larger_file() {
 
     // Upload using streaming
     let file = tokio::fs::File::open(local_path).await.unwrap();
-    let result = handler.upload_stream(test_path, file, Some(size)).await;
+    let result = handler
+        .upload_stream(test_path, file, Some(size), None)
+        .await;
 
     assert!(
         result.is_ok(),
@@ -230,13 +234,15 @@ async fn test_download_stream_larger_file() {
     // Upload first
     let upload_file = tokio::fs::File::open(local_upload).await.unwrap();
     handler
-        .upload_stream(test_path, upload_file, Some(size))
+        .upload_stream(test_path, upload_file, Some(size), None)
         .await
         .unwrap();
 
     // Download using streaming
     let mut download_file = tokio::fs::File::create(local_download).await.unwrap();
-    let result = handler.download_stream(test_path, &mut download_file).await;
+    let result = handler
+        .download_stream(test_path, &mut download_file, None)
+        .await;
 
     assert!(
         result.is_ok(),
@@ -252,4 +258,212 @@ async fn test_download_stream_larger_file() {
     cleanup_file(&client, test_path).await;
     let _ = std::fs::remove_file(local_upload);
     let _ = std::fs::remove_file(local_download);
+}
+
+// Progress callback implementation for testing
+type ProgressUpdate = (u64, Option<u64>);
+type ProgressUpdates = Arc<Mutex<Vec<ProgressUpdate>>>;
+
+struct TestProgressCallback {
+    updates: ProgressUpdates,
+}
+
+impl TestProgressCallback {
+    fn new() -> Self {
+        Self {
+            updates: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    fn get_updates(&self) -> Vec<ProgressUpdate> {
+        self.updates.lock().unwrap().clone()
+    }
+}
+
+impl ProgressCallback for TestProgressCallback {
+    fn on_progress(&self, progress: &Progress) {
+        let mut updates = self.updates.lock().unwrap();
+        updates.push((progress.bytes_transferred, progress.total_bytes));
+    }
+}
+
+#[cfg(feature = "integration-tests")]
+#[tokio::test]
+async fn test_upload_stream_with_progress() {
+    let client = get_test_client();
+    let handler = FileHandler::new(client.clone());
+
+    ensure_test_folder(&client).await;
+
+    let test_path = "/integration-tests/stream-upload-progress.txt";
+    let test_content = vec![0x42; 50000]; // 50KB file
+
+    // Cleanup
+    cleanup_file(&client, test_path).await;
+
+    println!("Testing streaming upload with progress callback");
+
+    let callback = Arc::new(TestProgressCallback::new());
+    let cursor = std::io::Cursor::new(test_content.clone());
+
+    // Upload with progress tracking
+    let result = handler
+        .upload_stream(
+            test_path,
+            cursor,
+            Some(test_content.len() as i64),
+            Some(callback.clone()),
+        )
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "Upload with progress should succeed: {:?}",
+        result.err()
+    );
+
+    // Verify progress updates were received
+    let updates = callback.get_updates();
+    assert!(!updates.is_empty(), "Should receive progress updates");
+
+    // Verify final update shows complete transfer
+    let last_update = updates.last().unwrap();
+    assert_eq!(
+        last_update.0,
+        test_content.len() as u64,
+        "Final progress should match file size"
+    );
+    assert_eq!(
+        last_update.1,
+        Some(test_content.len() as u64),
+        "Total bytes should be known"
+    );
+
+    println!("Received {} progress updates", updates.len());
+
+    // Cleanup
+    cleanup_file(&client, test_path).await;
+}
+
+#[cfg(feature = "integration-tests")]
+#[tokio::test]
+async fn test_download_stream_with_progress() {
+    let client = get_test_client();
+    let handler = FileHandler::new(client.clone());
+
+    ensure_test_folder(&client).await;
+
+    let test_path = "/integration-tests/stream-download-progress.txt";
+    let test_content = vec![0x43; 50000]; // 50KB file
+
+    // Cleanup and upload test file
+    cleanup_file(&client, test_path).await;
+    handler.upload_file(test_path, &test_content).await.unwrap();
+
+    println!("Testing streaming download with progress callback");
+
+    let callback = Arc::new(TestProgressCallback::new());
+    let mut buffer = Vec::new();
+
+    // Download with progress tracking
+    let result = handler
+        .download_stream(test_path, &mut buffer, Some(callback.clone()))
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "Download with progress should succeed: {:?}",
+        result.err()
+    );
+
+    // Verify content
+    assert_eq!(buffer, test_content);
+
+    // Verify progress updates were received
+    let updates = callback.get_updates();
+    assert!(!updates.is_empty(), "Should receive progress updates");
+
+    // Verify final update shows complete transfer
+    let last_update = updates.last().unwrap();
+    assert_eq!(
+        last_update.0,
+        test_content.len() as u64,
+        "Final progress should match file size"
+    );
+
+    println!("Received {} progress updates", updates.len());
+
+    // Cleanup
+    cleanup_file(&client, test_path).await;
+}
+
+#[cfg(feature = "integration-tests")]
+#[tokio::test]
+async fn test_upload_stream_progress_large_file() {
+    let client = get_test_client();
+    let handler = FileHandler::new(client.clone());
+
+    ensure_test_folder(&client).await;
+
+    let test_path = "/integration-tests/stream-upload-progress-large.bin";
+    let local_path = "/tmp/files-sdk-test-progress-large.bin";
+
+    // Cleanup
+    cleanup_file(&client, test_path).await;
+
+    println!("Testing streaming upload with progress on larger file (500KB)");
+
+    // Create a 500KB test file
+    let size = 500 * 1024; // 500KB
+    let mut file = std::fs::File::create(local_path).unwrap();
+    let chunk = vec![0xEE; 1024]; // 1KB chunk
+    for _ in 0..(size / 1024) {
+        file.write_all(&chunk).unwrap();
+    }
+    drop(file);
+
+    let callback = Arc::new(TestProgressCallback::new());
+    let file = tokio::fs::File::open(local_path).await.unwrap();
+
+    // Upload with progress tracking
+    let result = handler
+        .upload_stream(test_path, file, Some(size as i64), Some(callback.clone()))
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "Upload large file with progress should succeed: {:?}",
+        result.err()
+    );
+
+    // Verify progress updates
+    let updates = callback.get_updates();
+    assert!(
+        updates.len() > 1,
+        "Should receive multiple progress updates for large file"
+    );
+
+    // Verify monotonic increase
+    let mut last_bytes = 0;
+    for (bytes, _total) in &updates {
+        assert!(*bytes >= last_bytes, "Progress should only increase");
+        last_bytes = *bytes;
+    }
+
+    // Verify final progress
+    let last_update = updates.last().unwrap();
+    assert_eq!(
+        last_update.0, size as u64,
+        "Final progress should match file size"
+    );
+
+    println!(
+        "Received {} progress updates for {}KB upload",
+        updates.len(),
+        size / 1024
+    );
+
+    // Cleanup
+    cleanup_file(&client, test_path).await;
+    let _ = std::fs::remove_file(local_path);
 }
