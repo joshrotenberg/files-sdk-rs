@@ -387,8 +387,12 @@ impl FileHandler {
                 }
             }
 
-            // Upload the file data and capture the response
-            let upload_response = request.body(data.to_vec()).send().await?;
+            // Set Content-Length header (required by S3, even for empty files)
+            let upload_response = request
+                .header("Content-Length", data.len().to_string())
+                .body(data.to_vec())
+                .send()
+                .await?;
 
             // Extract ETag from response headers
             upload_response
@@ -601,8 +605,13 @@ impl FileHandler {
                 }
             }
 
-            // Upload the data
-            let upload_response = request.body(buffer).send().await?;
+            // Set Content-Length header (required by S3, even for empty files)
+            let content_length = buffer.len();
+            let upload_response = request
+                .header("Content-Length", content_length.to_string())
+                .body(buffer)
+                .send()
+                .await?;
 
             // Extract ETag from response headers
             upload_response
