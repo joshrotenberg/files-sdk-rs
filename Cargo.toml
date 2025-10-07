@@ -2,7 +2,8 @@
 name = "files-sdk"
 version = "0.3.1"
 edition = "2024"
-authors = ["Josh Rotenberg <josh@rotenberg.io>"]
+rust-version = "1.85"
+authors = ["Josh Rotenberg <joshrotenberg@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "Rust SDK for the Files.com API"
 repository = "https://github.com/joshrotenberg/files-idk-rs"

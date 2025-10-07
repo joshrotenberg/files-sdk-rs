@@ -22,6 +22,74 @@ Add to your `Cargo.toml`:
 files-sdk = "0.3"
 ```
 
+## API Stability
+
+### Current Status (v0.3.x)
+
+This SDK is **pre-1.0** and under active development. While we strive for stability, breaking changes may occur in minor versions (0.x releases) as we refine the API based on real-world usage.
+
+### Stability Tiers
+
+| Component | Stability | Notes |
+|-----------|-----------|-------|
+| **Core Client** | Stable | `FilesClient`, builder pattern, basic HTTP methods |
+| **Error Types** | Stable | `FilesError` variants and helpers |
+| **File Operations** | Stable | Upload, download, streaming APIs |
+| **Resource Handlers** | Beta | Feature-complete but may see refinements |
+| **Advanced Features** | Experimental | Rate limiting, retry logic - stabilizing |
+
+### Versioning
+
+We follow [Semantic Versioning](https://semver.org/):
+- **Patch** (0.3.x): Bug fixes, documentation, non-breaking additions
+- **Minor** (0.x.0): New features, **may include breaking changes** (per semver spec for 0.x)
+- **Major** (1.0.0+): Indicates API stability commitment; breaking changes only in major versions
+
+Note: Per semver, 0.x versions allow breaking changes in minor releases. We use this flexibility to refine the API based on real-world usage.
+
+### Minimum Supported Rust Version (MSRV)
+
+- **Current MSRV**: Rust 1.85.0 (required for edition 2024)
+- **Policy**: MSRV updates only in minor releases (0.x.0)
+- **Target**: Support latest stable and N-2 prior releases
+
+### Stabilization Roadmap
+
+The SDK is production-ready with ongoing refinements. We follow semver: breaking changes in minor releases (0.x) until the API is battle-tested, then we'll lock it down.
+
+**Completed:**
+- ✅ 100% API coverage (90 resources, 288 endpoints)
+- ✅ Comprehensive error handling
+- ✅ Streaming upload/download
+- ✅ Retry logic with exponential backoff
+- ✅ Client-side rate limiting
+- ✅ Property-based testing
+- ✅ Integration test suite
+
+**Ongoing:**
+- Gathering production usage feedback
+- Refining handler APIs based on real-world use
+- Expanding documentation and examples
+- Working toward Files.com team review/adoption
+
+**When will breaking changes stop?** When the API proves stable through real usage (likely 6-12 months). We'll then lock the API and switch to 1.x semver (breaking changes only in major versions).
+
+### For Production Use
+
+While pre-1.0, this SDK is suitable for production with these considerations:
+
+✅ **Recommended:**
+- Pin exact versions in `Cargo.toml`: `files-sdk = "=0.3.x"`
+- Test thoroughly before upgrading minor versions
+- Review changelogs for breaking changes
+
+⚠️ **Be Aware:**
+- Handler method signatures may change
+- New error variants may be added
+- Some advanced features are stabilizing
+
+📝 **Feedback Welcome:** Please open issues for any API pain points or suggestions. Real-world usage drives our 1.0 stabilization efforts!
+
 ## Quick Start
 
 ```rust
