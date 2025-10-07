@@ -9,15 +9,12 @@ use std::sync::Arc;
 use tracing::error;
 
 use crate::config::Config;
+use crate::daemon::Daemon;
 use crate::progress::ProgressBarTracker;
 use crate::syncer::Syncer;
 use crate::watcher::{FileEvent, FileWatcher};
 
 pub async fn handle_start(daemon: bool, path: Option<PathBuf>) -> Result<()> {
-    if daemon {
-        anyhow::bail!("Daemon mode not yet implemented (Phase 3)");
-    }
-
     // Load config
     let config = Config::load()?;
 
@@ -31,6 +28,13 @@ pub async fn handle_start(daemon: bool, path: Option<PathBuf>) -> Result<()> {
 
     let client = FilesClient::builder().api_key(api_key).build()?;
 
+    // If daemon mode, run daemon with all watch configs
+    if daemon {
+        let daemon = Daemon::new(client, config);
+        return daemon.run().await;
+    }
+
+    // Otherwise, run single watch in foreground
     // Determine which watch configs to start
     let watches = if let Some(ref p) = path {
         let p = p.canonicalize()?;

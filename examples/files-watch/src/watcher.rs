@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
-use notify_debouncer_full::{DebounceEventResult, Debouncer, FileIdMap, new_debouncer};
+use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, FileIdMap};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::sync::mpsc;

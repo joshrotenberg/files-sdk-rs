@@ -93,11 +93,24 @@ impl SyncState {
     }
 
     /// Check if a file needs to be synced based on state
-    pub fn needs_sync(&self, relative_path: &str, size: u64, modified: DateTime<Utc>) -> bool {
+    pub fn needs_sync(
+        &self,
+        relative_path: &str,
+        size: u64,
+        modified: DateTime<Utc>,
+        hash: Option<&str>,
+    ) -> bool {
         match self.files.get(relative_path) {
             None => true, // Never synced
             Some(info) => {
-                // Sync if size or modified time changed
+                // If we have hash information, use that for accurate comparison
+                if let (Some(current_hash), Some(stored_hash)) = (hash, &info.hash) {
+                    if current_hash != stored_hash {
+                        return true;
+                    }
+                }
+
+                // Otherwise, sync if size or modified time changed
                 info.size != size || info.modified != modified
             }
         }

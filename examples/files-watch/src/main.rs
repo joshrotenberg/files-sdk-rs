@@ -4,6 +4,8 @@ mod cli;
 mod commands;
 mod config;
 mod conflict;
+mod daemon;
+mod ignore;
 mod progress;
 mod state;
 mod syncer;
