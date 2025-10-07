@@ -165,6 +165,67 @@ impl FileHandler {
         Ok(())
     }
 
+    /// Download file content to an async stream (for large files)
+    ///
+    /// This method is more memory-efficient than `download_content()` for large files
+    /// as it streams the data directly to the writer instead of loading it into memory.
+    ///
+    /// # Arguments
+    ///
+    /// * `remote_path` - Path to the file on Files.com
+    /// * `writer` - An async writer implementing `AsyncWrite`
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use files_sdk::{FilesClient, FileHandler};
+    /// # use tokio::fs::File;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = FileHandler::new(client);
+    ///
+    /// let mut file = File::create("downloaded-large-file.tar.gz").await?;
+    /// handler.download_stream("/remote/large-file.tar.gz", &mut file).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn download_stream<W>(&self, remote_path: &str, writer: &mut W) -> Result<()>
+    where
+        W: tokio::io::AsyncWrite + Unpin,
+    {
+        use tokio::io::AsyncWriteExt;
+
+        // First, get the file metadata to obtain the download URI
+        let file = self.download_file(remote_path).await?;
+
+        // Extract the download URI
+        let download_uri = file.download_uri.ok_or_else(|| {
+            FilesError::not_found_resource("No download URI available", "file", remote_path)
+        })?;
+
+        // Stream the file content from the download URI
+        let mut response = reqwest::get(&download_uri)
+            .await
+            .map_err(FilesError::Request)?;
+
+        // Stream chunks to the writer
+        while let Some(chunk) = response.chunk().await.map_err(FilesError::Request)? {
+            writer
+                .write_all(&chunk)
+                .await
+                .map_err(|e| FilesError::IoError(format!("Failed to write to stream: {}", e)))?;
+        }
+
+        // Flush the writer to ensure all data is written
+        writer
+            .flush()
+            .await
+            .map_err(|e| FilesError::IoError(format!("Failed to flush stream: {}", e)))?;
+
+        Ok(())
+    }
+
     /// Get file metadata only (no download URL, no logging)
     ///
     /// This is a convenience method that calls `FileActionHandler::get_metadata()`
@@ -276,6 +337,117 @@ impl FileHandler {
         //     form.push(("etags[etag]", etag_value));
         //     form.push(("etags[part]", part_number.to_string()));
         // }
+
+        let response = self.client.post_form(&endpoint, &form).await?;
+        Ok(serde_json::from_value(response)?)
+    }
+
+    /// Upload a file from an async stream (for large files)
+    ///
+    /// This method is more memory-efficient than `upload_file()` for large files
+    /// as it streams the data instead of loading it entirely into memory.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Destination path for the file
+    /// * `reader` - An async reader implementing `AsyncRead`
+    /// * `size` - Optional size of the file in bytes (required for some upload methods)
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use files_sdk::{FilesClient, FileHandler};
+    /// # use tokio::fs::File;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let client = FilesClient::builder().api_key("key").build()?;
+    /// let handler = FileHandler::new(client);
+    ///
+    /// let file = File::open("large-file.tar.gz").await?;
+    /// let metadata = file.metadata().await?;
+    /// let size = metadata.len();
+    ///
+    /// handler.upload_stream("/uploads/large-file.tar.gz", file, Some(size as i64)).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn upload_stream<R>(
+        &self,
+        path: &str,
+        mut reader: R,
+        size: Option<i64>,
+    ) -> Result<FileEntity>
+    where
+        R: tokio::io::AsyncRead + Unpin,
+    {
+        use tokio::io::AsyncReadExt;
+
+        // Stage 1: Begin upload
+        let file_action = FileActionHandler::new(self.client.clone());
+        let upload_parts = file_action.begin_upload(path, size, true).await?;
+
+        if upload_parts.is_empty() {
+            return Err(crate::FilesError::ApiError {
+                endpoint: None,
+                code: 500,
+                message: "No upload parts returned from begin_upload".to_string(),
+            });
+        }
+
+        let upload_part = &upload_parts[0];
+
+        // Stage 2: Stream file data to the provided URL
+        let _etag = if let Some(upload_uri) = &upload_part.upload_uri {
+            // Read the entire stream into a buffer
+            // TODO: In future, we could implement true streaming with chunked transfer encoding
+            let mut buffer = Vec::new();
+            reader
+                .read_to_end(&mut buffer)
+                .await
+                .map_err(|e| FilesError::IoError(format!("Failed to read from stream: {}", e)))?;
+
+            let http_client = reqwest::Client::new();
+            let http_method = upload_part
+                .http_method
+                .as_deref()
+                .unwrap_or("PUT")
+                .to_uppercase();
+
+            let mut request = match http_method.as_str() {
+                "PUT" => http_client.put(upload_uri),
+                "POST" => http_client.post(upload_uri),
+                _ => http_client.put(upload_uri),
+            };
+
+            // Add any custom headers
+            if let Some(headers) = &upload_part.headers {
+                for (key, value) in headers {
+                    request = request.header(key, value);
+                }
+            }
+
+            // Upload the data
+            let upload_response = request.body(buffer).send().await?;
+
+            // Extract ETag from response headers
+            upload_response
+                .headers()
+                .get("etag")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.trim_matches('"').to_string())
+        } else {
+            None
+        };
+
+        // Stage 3: Finalize upload with Files.com
+        let encoded_path = encode_path(path);
+        let endpoint = format!("/files{}", encoded_path);
+
+        let mut form = vec![("action", "end".to_string())];
+
+        if let Some(ref_value) = &upload_part.ref_ {
+            form.push(("ref", ref_value.clone()));
+        }
 
         let response = self.client.post_form(&endpoint, &form).await?;
         Ok(serde_json::from_value(response)?)

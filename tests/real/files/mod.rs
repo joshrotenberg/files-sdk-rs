@@ -8,3 +8,4 @@ mod files;
 mod files_comprehensive;
 mod folders;
 mod special_characters;
+mod streaming;
