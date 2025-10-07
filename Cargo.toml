@@ -23,6 +23,11 @@ futures = "0.3"
 async-stream = "0.3"
 walkdir = "2.5"
 
+# Tower middleware support (optional)
+tower = { version = "0.5", optional = true }
+tower-http = { version = "0.6", features = ["trace"], optional = true }
+http = { version = "1.1", optional = true }
+
 [dev-dependencies]
 mockall = "0.13"
 proptest = "1.5"
@@ -34,3 +39,4 @@ wiremock = "0.6"
 default = []
 integration-tests = []
 tracing = ["dep:tracing"]
+tower = ["dep:tower", "dep:tower-http", "dep:http"]
