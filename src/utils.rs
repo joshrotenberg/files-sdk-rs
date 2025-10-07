@@ -80,6 +80,7 @@ fn percent_encode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     #[test]
     fn test_encode_simple_path() {
@@ -162,5 +163,119 @@ mod tests {
             encode_path("/my folder/data [2024]/文档.txt"),
             "/my%20folder/data%20%5B2024%5D/%E6%96%87%E6%A1%A3.txt"
         );
+    }
+
+    // Property-based tests
+
+    proptest! {
+        /// Property: Encoding a path always produces valid ASCII output
+        #[test]
+        fn prop_encoded_path_is_ascii(path in "(/[^/\0]{0,100}){0,10}") {
+            let encoded = encode_path(&path);
+            prop_assert!(encoded.is_ascii(), "Encoded path should be ASCII: {}", encoded);
+        }
+
+        /// Property: Encoding preserves slash structure
+        #[test]
+        fn prop_encoding_preserves_slash_count(path in "(/[^/\0]{0,100}){0,10}") {
+            let encoded = encode_path(&path);
+            let original_slashes = path.matches('/').count();
+            let encoded_slashes = encoded.matches('/').count();
+            prop_assert_eq!(original_slashes, encoded_slashes,
+                "Slash count should be preserved. Original: {}, Encoded: {}", path, encoded);
+        }
+
+        /// Property: Encoding is idempotent (encoding an encoded path doesn't change it)
+        #[test]
+        fn prop_encoding_is_idempotent(path in "[a-zA-Z0-9._~/-]{0,200}") {
+            let encoded_once = encode_path(&path);
+            let encoded_twice = encode_path(&encoded_once);
+            prop_assert_eq!(encoded_once, encoded_twice,
+                "Encoding should be idempotent for already-encoded paths");
+        }
+
+        /// Property: Empty segments are preserved (leading/trailing slashes)
+        #[test]
+        fn prop_preserves_leading_slash(path in "/[a-zA-Z0-9._~]{1,50}(/[a-zA-Z0-9._~]{0,50}){0,5}") {
+            let encoded = encode_path(&path);
+            prop_assert!(encoded.starts_with('/'), "Leading slash should be preserved");
+        }
+
+        /// Property: Trailing slashes are preserved
+        #[test]
+        fn prop_preserves_trailing_slash(path in "[a-zA-Z0-9._~]{1,50}(/[a-zA-Z0-9._~]{0,50}){0,5}/") {
+            let encoded = encode_path(&path);
+            prop_assert!(encoded.ends_with('/'), "Trailing slash should be preserved");
+        }
+
+        /// Property: No double encoding - percent signs in output are only from encoding
+        #[test]
+        fn prop_no_double_encoding(s in "[^/\0]{1,50}") {
+            let path = format!("/{}", s);
+            let encoded = encode_path(&path);
+
+            // If there's a % in the encoded output, it should always be followed by exactly 2 hex digits
+            let mut chars = encoded.chars().peekable();
+            while let Some(c) = chars.next() {
+                if c == '%' {
+                    let next1 = chars.next();
+                    let next2 = chars.next();
+                    prop_assert!(next1.is_some() && next2.is_some(),
+                        "% should be followed by 2 characters");
+                    prop_assert!(next1.unwrap().is_ascii_hexdigit() && next2.unwrap().is_ascii_hexdigit(),
+                        "% should be followed by 2 hex digits");
+                }
+            }
+        }
+
+        /// Property: Unreserved characters (A-Za-z0-9-_.~) are never encoded
+        #[test]
+        fn prop_unreserved_never_encoded(s in "[A-Za-z0-9._~-]+") {
+            let encoded = encode_path(&s);
+            prop_assert_eq!(&encoded, &s, "Unreserved characters should not be encoded");
+        }
+
+        /// Property: Spaces are always encoded as %20
+        #[test]
+        fn prop_spaces_encoded_as_percent20(s in "[a-z ]{1,50}") {
+            let path = format!("/{}", s);
+            let encoded = encode_path(&path);
+
+            if s.contains(' ') {
+                prop_assert!(encoded.contains("%20"), "Spaces should be encoded as %20");
+                prop_assert!(!encoded.contains('+'), "Spaces should not be encoded as +");
+            }
+        }
+
+        /// Property: Very long paths don't panic
+        #[test]
+        fn prop_handles_long_paths(path in "(/[a-zA-Z0-9]{0,500}){0,20}") {
+            let _ = encode_path(&path); // Should not panic
+        }
+
+        /// Property: Unicode characters are percent-encoded
+        #[test]
+        fn prop_unicode_is_encoded(s in "[\\u{0080}-\\u{FFFF}]{1,20}") {
+            let path = format!("/{}", s);
+            let encoded = encode_path(&path);
+
+            // Unicode should be encoded (will contain %)
+            if !s.is_ascii() {
+                prop_assert!(encoded.contains('%'),
+                    "Non-ASCII unicode should be percent-encoded: {} -> {}", s, encoded);
+            }
+        }
+
+        /// Property: Root path is unchanged
+        #[test]
+        fn prop_root_path_unchanged(_unit in prop::bool::ANY) {
+            prop_assert_eq!(encode_path("/"), "/");
+        }
+
+        /// Property: Empty path is unchanged
+        #[test]
+        fn prop_empty_path_unchanged(_unit in prop::bool::ANY) {
+            prop_assert_eq!(encode_path(""), "");
+        }
     }
 }
