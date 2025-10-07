@@ -15,10 +15,6 @@ pub enum FilesError {
     #[error("HTTP request failed: {0}")]
     Request(#[from] reqwest::Error),
 
-    /// Middleware request failed
-    #[error("Request middleware error: {0}")]
-    Middleware(#[from] reqwest_middleware::Error),
-
     /// Bad Request (400) - Invalid parameters or malformed request
     #[error("Bad Request (400): {message}")]
     BadRequest {
