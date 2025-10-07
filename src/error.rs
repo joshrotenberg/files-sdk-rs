@@ -15,6 +15,10 @@ pub enum FilesError {
     #[error("HTTP request failed: {0}")]
     Request(#[from] reqwest::Error),
 
+    /// Middleware request failed
+    #[error("Request middleware error: {0}")]
+    Middleware(#[from] reqwest_middleware::Error),
+
     /// Bad Request (400) - Invalid parameters or malformed request
     #[error("Bad Request (400): {message}")]
     BadRequest {
@@ -123,6 +127,13 @@ pub enum FilesError {
     /// JSON serialization/deserialization error
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
+
+    /// JSON deserialization error with path information
+    #[error("JSON deserialization error at '{path}': {source}")]
+    JsonPathError {
+        path: String,
+        source: serde_json::Error,
+    },
 
     /// I/O error (file operations)
     #[error("I/O error: {0}")]

@@ -8,6 +8,8 @@
 
 use crate::{FilesError, Result};
 use reqwest::Client;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
 use serde::Serialize;
 use std::sync::Arc;
 use std::time::Duration;
@@ -47,6 +49,8 @@ pub struct FilesClientBuilder {
     api_key: Option<String>,
     base_url: String,
     timeout: Duration,
+    max_retries: u32,
+    retry_base_delay: Duration,
 }
 
 impl Default for FilesClientBuilder {
@@ -55,6 +59,8 @@ impl Default for FilesClientBuilder {
             api_key: None,
             base_url: "https://app.files.com/api/rest/v1".to_string(),
             timeout: Duration::from_secs(60),
+            max_retries: 3,
+            retry_base_delay: Duration::from_secs(1),
         }
     }
 }
@@ -90,6 +96,38 @@ impl FilesClientBuilder {
         self
     }
 
+    /// Sets the maximum number of retry attempts for transient errors
+    ///
+    /// Retries are automatically attempted for:
+    /// - 429 (Too Many Requests)
+    /// - 500 (Internal Server Error)
+    /// - 502 (Bad Gateway)
+    /// - 503 (Service Unavailable)
+    /// - 504 (Gateway Timeout)
+    ///
+    /// # Arguments
+    ///
+    /// * `max_retries` - Maximum retry attempts (default: 3, set to 0 to disable)
+    pub fn max_retries(mut self, max_retries: u32) -> Self {
+        self.max_retries = max_retries;
+        self
+    }
+
+    /// Sets the base delay for exponential backoff retries
+    ///
+    /// The actual delay uses exponential backoff with jitter:
+    /// - First retry: ~base_delay
+    /// - Second retry: ~base_delay * 2
+    /// - Third retry: ~base_delay * 4
+    ///
+    /// # Arguments
+    ///
+    /// * `delay` - Base delay duration (default: 1 second)
+    pub fn retry_base_delay(mut self, delay: Duration) -> Self {
+        self.retry_base_delay = delay;
+        self
+    }
+
     /// Builds the FilesClient instance
     ///
     /// # Errors
@@ -102,10 +140,24 @@ impl FilesClientBuilder {
             .api_key
             .ok_or_else(|| FilesError::ConfigError("API key is required".to_string()))?;
 
-        let client = Client::builder()
+        let reqwest_client = Client::builder()
             .timeout(self.timeout)
             .build()
             .map_err(|e| FilesError::ConfigError(format!("Failed to build HTTP client: {}", e)))?;
+
+        // Build client with retry middleware if retries are enabled
+        let client = if self.max_retries > 0 {
+            let retry_policy = ExponentialBackoff::builder()
+                .retry_bounds(self.retry_base_delay, Duration::from_secs(60))
+                .build_with_max_retries(self.max_retries);
+
+            ClientBuilder::new(reqwest_client)
+                .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+                .build()
+        } else {
+            // No retries - just wrap reqwest client
+            ClientBuilder::new(reqwest_client).build()
+        };
 
         Ok(FilesClient {
             inner: Arc::new(FilesClientInner {
@@ -122,7 +174,7 @@ impl FilesClientBuilder {
 pub(crate) struct FilesClientInner {
     pub(crate) api_key: String,
     pub(crate) base_url: String,
-    pub(crate) client: Client,
+    pub(crate) client: ClientWithMiddleware,
 }
 
 /// Files.com API client
@@ -208,6 +260,8 @@ impl FilesClient {
         #[cfg(feature = "tracing")]
         debug!("Making POST request to {}", path);
 
+        let json_body = serde_json::to_string(&body).map_err(FilesError::JsonError)?;
+
         let response = self
             .inner
             .client
@@ -215,7 +269,7 @@ impl FilesClient {
             .header("X-FilesAPI-Key", &self.inner.api_key)
             .header("User-Agent", USER_AGENT)
             .header("Content-Type", "application/json")
-            .json(&body)
+            .body(json_body)
             .send()
             .await?;
 
@@ -245,6 +299,8 @@ impl FilesClient {
         #[cfg(feature = "tracing")]
         debug!("Making PATCH request to {}", path);
 
+        let json_body = serde_json::to_string(&body).map_err(FilesError::JsonError)?;
+
         let response = self
             .inner
             .client
@@ -252,7 +308,7 @@ impl FilesClient {
             .header("X-FilesAPI-Key", &self.inner.api_key)
             .header("User-Agent", USER_AGENT)
             .header("Content-Type", "application/json")
-            .json(&body)
+            .body(json_body)
             .send()
             .await?;
 
@@ -333,7 +389,16 @@ impl FilesClient {
                 return Ok(serde_json::Value::Null);
             }
 
-            let value = response.json().await?;
+            // Use serde_path_to_error for better error messages
+            let text = response.text().await?;
+            let deserializer = &mut serde_json::Deserializer::from_str(&text);
+            let value: serde_json::Value =
+                serde_path_to_error::deserialize(deserializer).map_err(|e| {
+                    FilesError::JsonPathError {
+                        path: e.path().to_string(),
+                        source: e.into_inner(),
+                    }
+                })?;
             Ok(value)
         } else {
             let status_code = status.as_u16();
