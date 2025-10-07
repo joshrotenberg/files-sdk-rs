@@ -387,8 +387,12 @@ impl FileHandler {
                 }
             }
 
-            // Upload the file data and capture the response
-            let upload_response = request.body(data.to_vec()).send().await?;
+            // Set Content-Length header (required by S3, even for empty files)
+            let upload_response = request
+                .header("Content-Length", data.len().to_string())
+                .body(data.to_vec())
+                .send()
+                .await?;
 
             // Extract ETag from response headers
             upload_response
@@ -541,12 +545,10 @@ impl FileHandler {
 
         let upload_part = &upload_parts[0];
 
-        // Special case: empty files (size=0) may not have an upload_uri
-        // In this case, we skip the upload stage and go straight to finalization
-        let is_empty_file = size == Some(0);
-
         // Stage 2: Stream file data to the provided URL with progress tracking
-        let _etag = if !is_empty_file && upload_part.upload_uri.is_some() {
+        // Note: Even for empty files (size=0), we must perform the upload stage.
+        // S3 requires the Content-Length header, and the API tracks whether the upload occurred.
+        let _etag = if upload_part.upload_uri.is_some() {
             let upload_uri = upload_part.upload_uri.as_ref().unwrap();
             // Read the stream into a buffer with progress tracking
             // Note: We read in chunks to provide progress updates, but still buffer
@@ -601,8 +603,13 @@ impl FileHandler {
                 }
             }
 
-            // Upload the data
-            let upload_response = request.body(buffer).send().await?;
+            // Set Content-Length header (required by S3, even for empty files)
+            let content_length = buffer.len();
+            let upload_response = request
+                .header("Content-Length", content_length.to_string())
+                .body(buffer)
+                .send()
+                .await?;
 
             // Extract ETag from response headers
             upload_response
