@@ -117,7 +117,10 @@ async fn test_download_metadata_vs_content() {
     // download_file returns metadata (FileEntity)
     let file_entity = handler.download_file(path).await.unwrap();
     assert!(file_entity.download_uri.is_some());
-    assert_eq!(file_entity.path, Some(path.to_string()));
+    assert_eq!(
+        file_entity.path.as_deref(),
+        Some(path.trim_start_matches('/'))
+    );
 
     // download_content returns actual bytes
     let actual_content = handler.download_content(path).await.unwrap();
