@@ -11,12 +11,14 @@
 //! 2. Use this handler's `upload_file()` to complete the upload
 
 use crate::files::FileActionHandler;
+use crate::progress::{Progress, ProgressCallback};
 use crate::types::FileEntity;
 use crate::utils::encode_path;
 use crate::{FilesClient, FilesError, Result};
 use serde_json::json;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 use walkdir::WalkDir;
 
 /// Handler for file operations
@@ -174,6 +176,7 @@ impl FileHandler {
     ///
     /// * `remote_path` - Path to the file on Files.com
     /// * `writer` - An async writer implementing `AsyncWrite`
+    /// * `progress_callback` - Optional callback for progress updates
     ///
     /// # Examples
     ///
@@ -186,17 +189,22 @@ impl FileHandler {
     /// let handler = FileHandler::new(client);
     ///
     /// let mut file = File::create("downloaded-large-file.tar.gz").await?;
-    /// handler.download_stream("/remote/large-file.tar.gz", &mut file).await?;
+    /// handler.download_stream("/remote/large-file.tar.gz", &mut file, None).await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn download_stream<W>(&self, remote_path: &str, writer: &mut W) -> Result<()>
+    pub async fn download_stream<W>(
+        &self,
+        remote_path: &str,
+        writer: &mut W,
+        progress_callback: Option<Arc<dyn ProgressCallback>>,
+    ) -> Result<()>
     where
         W: tokio::io::AsyncWrite + Unpin,
     {
         use tokio::io::AsyncWriteExt;
 
-        // First, get the file metadata to obtain the download URI
+        // First, get the file metadata to obtain the download URI and size
         let file = self.download_file(remote_path).await?;
 
         // Extract the download URI
@@ -204,17 +212,32 @@ impl FileHandler {
             FilesError::not_found_resource("No download URI available", "file", remote_path)
         })?;
 
+        // Get the total file size for progress tracking
+        let total_bytes = file
+            .size
+            .and_then(|s| if s > 0 { Some(s as u64) } else { None });
+
         // Stream the file content from the download URI
         let mut response = reqwest::get(&download_uri)
             .await
             .map_err(FilesError::Request)?;
 
-        // Stream chunks to the writer
+        let mut bytes_transferred = 0u64;
+
+        // Stream chunks to the writer with progress tracking
         while let Some(chunk) = response.chunk().await.map_err(FilesError::Request)? {
             writer
                 .write_all(&chunk)
                 .await
                 .map_err(|e| FilesError::IoError(format!("Failed to write to stream: {}", e)))?;
+
+            bytes_transferred += chunk.len() as u64;
+
+            // Report progress
+            if let Some(ref callback) = progress_callback {
+                let progress = Progress::new(bytes_transferred, total_bytes);
+                callback.on_progress(&progress);
+            }
         }
 
         // Flush the writer to ensure all data is written
@@ -367,7 +390,7 @@ impl FileHandler {
     /// let metadata = file.metadata().await?;
     /// let size = metadata.len();
     ///
-    /// handler.upload_stream("/uploads/large-file.tar.gz", file, Some(size as i64)).await?;
+    /// handler.upload_stream("/uploads/large-file.tar.gz", file, Some(size as i64), None).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -376,6 +399,7 @@ impl FileHandler {
         path: &str,
         mut reader: R,
         size: Option<i64>,
+        progress_callback: Option<Arc<dyn ProgressCallback>>,
     ) -> Result<FileEntity>
     where
         R: tokio::io::AsyncRead + Unpin,
@@ -396,15 +420,31 @@ impl FileHandler {
 
         let upload_part = &upload_parts[0];
 
-        // Stage 2: Stream file data to the provided URL
+        // Stage 2: Stream file data to the provided URL with progress tracking
         let _etag = if let Some(upload_uri) = &upload_part.upload_uri {
-            // Read the entire stream into a buffer
-            // TODO: In future, we could implement true streaming with chunked transfer encoding
+            // Read the stream into a buffer with progress tracking
             let mut buffer = Vec::new();
-            reader
-                .read_to_end(&mut buffer)
-                .await
-                .map_err(|e| FilesError::IoError(format!("Failed to read from stream: {}", e)))?;
+            let chunk_size = 8192;
+            let mut temp_buffer = vec![0u8; chunk_size];
+            let total_bytes = size.map(|s| s as u64);
+
+            loop {
+                let bytes_read = reader.read(&mut temp_buffer).await.map_err(|e| {
+                    FilesError::IoError(format!("Failed to read from stream: {}", e))
+                })?;
+
+                if bytes_read == 0 {
+                    break;
+                }
+
+                buffer.extend_from_slice(&temp_buffer[..bytes_read]);
+
+                // Report progress
+                if let Some(ref callback) = progress_callback {
+                    let progress = Progress::new(buffer.len() as u64, total_bytes);
+                    callback.on_progress(&progress);
+                }
+            }
 
             let http_client = reqwest::Client::new();
             let http_method = upload_part
