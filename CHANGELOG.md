@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1](https://github.com/joshrotenberg/files-sdk-rs/compare/v0.4.0...v0.4.1) - 2026-06-08
+
+### Added
+
+- type-safe enums for closed-set fields (part of #13) ([#96](https://github.com/joshrotenberg/files-sdk-rs/pull/96))
+
+### Fixed
+
+- use rustls-tls instead of native-tls (drop OpenSSL dependency) ([#95](https://github.com/joshrotenberg/files-sdk-rs/pull/95))
+
 ## [0.4.0](https://github.com/joshrotenberg/files-sdk-rs/compare/v0.3.1...v0.4.0) - 2025-10-07
 
 ### Added
