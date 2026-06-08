@@ -171,7 +171,7 @@ pub use client::{FilesClient, FilesClientBuilder};
 pub use error::{FilesError, Result};
 
 // Re-export common types
-pub use types::{FileEntity, FileUploadPartEntity, FolderEntity, PaginationInfo};
+pub use types::{EntryType, FileEntity, FileUploadPartEntity, FolderEntity, PaginationInfo};
 
 // Re-export all handlers for backward compatibility
 pub use admin::{
@@ -206,8 +206,9 @@ pub use messages::{
 pub use security::{ClickwrapHandler, GpgKeyHandler, IpAddressHandler, SftpHostKeyHandler};
 pub use sharing::{
     BundleActionHandler, BundleDownloadHandler, BundleHandler, BundleNotificationHandler,
-    BundleRecipientHandler, BundleRegistrationHandler, FormFieldSetHandler, InboxRecipientHandler,
-    InboxRegistrationHandler2, InboxUploadHandler, RequestHandler, ShareGroupHandler,
+    BundlePermission, BundleRecipientHandler, BundleRegistrationHandler, FormFieldSetHandler,
+    InboxRecipientHandler, InboxRegistrationHandler2, InboxUploadHandler, RequestHandler,
+    ShareGroupHandler,
 };
 pub use storage::{
     BandwidthSnapshotHandler, LockHandler, PriorityHandler, ProjectHandler,
@@ -216,8 +217,9 @@ pub use storage::{
 };
 pub use users::{
     ApiKeyCurrentHandler, ApiKeyHandler, CurrentUserHandler, GroupHandler, GroupUserHandler,
-    PermissionHandler, PublicKeyHandler, SessionHandler, SsoStrategyHandler, UserCipherUseHandler,
-    UserHandler, UserLifecycleRuleHandler, UserRequestHandler, UserSftpClientUseHandler,
+    PermissionHandler, PermissionType, PublicKeyHandler, SessionHandler, SsoStrategyHandler,
+    UserCipherUseHandler, UserHandler, UserLifecycleRuleHandler, UserRequestHandler,
+    UserSftpClientUseHandler,
 };
 
 // Error types are now in the error module

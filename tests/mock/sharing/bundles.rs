@@ -1,4 +1,4 @@
-use files_sdk::{BundleHandler, FilesClient};
+use files_sdk::{BundleHandler, BundlePermission, FilesClient};
 use wiremock::matchers::{header, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -169,7 +169,7 @@ async fn test_create_bundle_success() {
             None,
             Some("newbundle"),
             Some(true),
-            Some("read"),
+            Some(BundlePermission::Read),
         )
         .await
         .unwrap();

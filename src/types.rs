@@ -7,6 +7,32 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Type of a filesystem entry returned by Files.com.
+///
+/// The API reports each entry as either a `"file"` or a `"directory"`.
+/// Using an enum here instead of a raw string gives compile-time safety
+/// and exhaustive matching.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EntryType {
+    /// A regular file.
+    File,
+    /// A directory (folder).
+    Directory,
+}
+
+impl EntryType {
+    /// Returns `true` if this entry is a file.
+    pub fn is_file(&self) -> bool {
+        matches!(self, EntryType::File)
+    }
+
+    /// Returns `true` if this entry is a directory.
+    pub fn is_directory(&self) -> bool {
+        matches!(self, EntryType::Directory)
+    }
+}
+
 /// Represents a file or directory in Files.com
 ///
 /// This is the primary entity returned by most file operations.
@@ -20,9 +46,9 @@ pub struct FileEntity {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
 
-    /// Type: "file" or "directory"
+    /// Type: file or directory
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub file_type: Option<String>,
+    pub file_type: Option<EntryType>,
 
     /// Size in bytes
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -287,7 +313,7 @@ mod tests {
         let entity: FileEntity = serde_json::from_str(json).unwrap();
         assert_eq!(entity.path, Some("/test/file.txt".to_string()));
         assert_eq!(entity.display_name, Some("file.txt".to_string()));
-        assert_eq!(entity.file_type, Some("file".to_string()));
+        assert_eq!(entity.file_type, Some(EntryType::File));
         assert_eq!(entity.size, Some(1024));
     }
 

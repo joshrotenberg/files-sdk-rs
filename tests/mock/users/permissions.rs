@@ -1,4 +1,4 @@
-use files_sdk::{FilesClient, PermissionHandler};
+use files_sdk::{FilesClient, PermissionHandler, PermissionType};
 use wiremock::matchers::{header, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -44,7 +44,7 @@ async fn test_list_permissions_success() {
     assert_eq!(permissions.len(), 2);
     assert_eq!(permissions[0].id, Some(1));
     assert_eq!(permissions[0].path.as_deref(), Some("/documents"));
-    assert_eq!(permissions[0].permission.as_deref(), Some("full"));
+    assert_eq!(permissions[0].permission, Some(PermissionType::Full));
     assert_eq!(permissions[1].group_name.as_deref(), Some("Engineering"));
 }
 
@@ -107,7 +107,7 @@ async fn test_create_permission_for_user_success() {
     let permission = handler
         .create(
             "/documents",
-            Some("full"),
+            Some(PermissionType::Full),
             Some(123),
             None,
             None,
@@ -120,7 +120,7 @@ async fn test_create_permission_for_user_success() {
     assert_eq!(permission.id, Some(789));
     assert_eq!(permission.path.as_deref(), Some("/documents"));
     assert_eq!(permission.user_id, Some(123));
-    assert_eq!(permission.permission.as_deref(), Some("full"));
+    assert_eq!(permission.permission, Some(PermissionType::Full));
     assert_eq!(permission.recursive, Some(true));
 }
 
@@ -154,7 +154,7 @@ async fn test_create_permission_for_group_success() {
     let permission = handler
         .create(
             "/shared",
-            Some("readonly"),
+            Some(PermissionType::Readonly),
             None,
             None,
             Some(456),
@@ -166,7 +166,7 @@ async fn test_create_permission_for_group_success() {
 
     assert_eq!(permission.id, Some(790));
     assert_eq!(permission.group_id, Some(456));
-    assert_eq!(permission.permission.as_deref(), Some("readonly"));
+    assert_eq!(permission.permission, Some(PermissionType::Readonly));
 }
 
 #[tokio::test]
