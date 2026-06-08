@@ -15,7 +15,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use files_sdk::{FilesClient, BundleHandler};
+//! use files_sdk::{FilesClient, BundleHandler, BundlePermission};
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let client = FilesClient::builder()
@@ -34,7 +34,7 @@
 //!     Some("Internal sharing only"),
 //!     None,
 //!     Some(true),
-//!     Some("read")
+//!     Some(BundlePermission::Read)
 //! ).await?;
 //!
 //! println!("Share link: {}", bundle.url.unwrap_or_default());
@@ -54,7 +54,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 /// Bundle permissions enum
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BundlePermission {
     /// Read-only access
@@ -100,7 +100,7 @@ pub struct BundleEntity {
 
     /// Permissions that apply to folders in this share link
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub permissions: Option<String>,
+    pub permissions: Option<BundlePermission>,
 
     /// Preview only mode
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -357,7 +357,7 @@ impl BundleHandler {
     /// * `note` - Private internal note (not shown to recipients)
     /// * `code` - Custom URL code (auto-generated if not provided)
     /// * `require_registration` - Require recipients to register before access
-    /// * `permissions` - Access level: "read", "write", "read_write", "full", "preview_only"
+    /// * `permissions` - Access level (see [`BundlePermission`])
     ///
     /// # Returns
     ///
@@ -366,7 +366,7 @@ impl BundleHandler {
     /// # Example
     ///
     /// ```no_run
-    /// use files_sdk::{FilesClient, BundleHandler};
+    /// use files_sdk::{FilesClient, BundleHandler, BundlePermission};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = FilesClient::builder().api_key("key").build()?;
@@ -382,7 +382,7 @@ impl BundleHandler {
     ///     None,
     ///     None,
     ///     Some(false),
-    ///     Some("read")
+    ///     Some(BundlePermission::Read)
     /// ).await?;
     ///
     /// println!("Share this link: {}", bundle.url.unwrap());
@@ -400,7 +400,7 @@ impl BundleHandler {
         note: Option<&str>,
         code: Option<&str>,
         require_registration: Option<bool>,
-        permissions: Option<&str>,
+        permissions: Option<BundlePermission>,
     ) -> Result<BundleEntity> {
         let mut body = json!({
             "paths": paths,

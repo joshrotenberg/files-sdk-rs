@@ -7,7 +7,7 @@ use crate::{FilesClient, Result};
 use serde::{Deserialize, Serialize};
 
 /// Permission types available in Files.com
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PermissionType {
     /// List, preview, read, write, move, delete, rename, manage permissions
@@ -61,7 +61,7 @@ pub struct PermissionEntity {
 
     /// Permission type
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub permission: Option<String>,
+    pub permission: Option<PermissionType>,
 
     /// Apply to subfolders recursively
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -136,7 +136,7 @@ impl PermissionHandler {
     ///
     /// # Arguments
     /// * `path` - Folder path (required)
-    /// * `permission` - Permission type (admin, full, readonly, writeonly, list, history)
+    /// * `permission` - Permission type (see [`PermissionType`])
     /// * `user_id` - User ID (provide user_id or username)
     /// * `username` - Username (provide user_id or username)
     /// * `group_id` - Group ID (provide group_id or group_name)
@@ -149,7 +149,7 @@ impl PermissionHandler {
     pub async fn create(
         &self,
         path: &str,
-        permission: Option<&str>,
+        permission: Option<PermissionType>,
         user_id: Option<i64>,
         username: Option<&str>,
         group_id: Option<i64>,
@@ -159,7 +159,11 @@ impl PermissionHandler {
         let mut params = vec![("path", path.to_string())];
 
         if let Some(p) = permission {
-            params.push(("permission", p.to_string()));
+            // Serialize the enum through serde so the wire value stays the
+            // single source of truth (e.g. ReadonlySiteAdmin -> "readonly_site_admin").
+            if let serde_json::Value::String(s) = serde_json::to_value(&p)? {
+                params.push(("permission", s));
+            }
         }
         if let Some(uid) = user_id {
             params.push(("user_id", uid.to_string()));

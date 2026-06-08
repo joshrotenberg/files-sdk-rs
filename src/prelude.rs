@@ -25,17 +25,17 @@ pub use crate::client::{FilesClient, FilesClientBuilder};
 pub use crate::error::{FilesError, Result};
 
 // Common entity types
-pub use crate::types::{FileEntity, FileUploadPartEntity, FolderEntity, PaginationInfo};
+pub use crate::types::{EntryType, FileEntity, FileUploadPartEntity, FolderEntity, PaginationInfo};
 
 // Progress tracking
 pub use crate::progress::{Progress, ProgressCallback};
 
 // Most commonly used handlers
 pub use crate::files::{FileActionHandler, FileHandler, FolderHandler};
-pub use crate::users::{ApiKeyHandler, GroupHandler, SessionHandler, UserHandler};
+pub use crate::users::{ApiKeyHandler, GroupHandler, PermissionType, SessionHandler, UserHandler};
 
 // Sharing
-pub use crate::sharing::{BundleHandler, RequestHandler};
+pub use crate::sharing::{BundleHandler, BundlePermission, RequestHandler};
 
 // Automation
 pub use crate::automation::{AutomationHandler, BehaviorHandler};

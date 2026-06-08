@@ -357,7 +357,7 @@ impl Syncer {
 
             for file in files {
                 // Only process actual files, not directories
-                if file.file_type.as_deref() == Some("file") {
+                if file.file_type.as_ref().is_some_and(|t| t.is_file()) {
                     if let Some(path) = &file.path {
                         let size = file.size.unwrap_or(0);
 
