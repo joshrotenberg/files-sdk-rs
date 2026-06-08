@@ -26,8 +26,8 @@
 //! // List root directory
 //! let (files, pagination) = handler.list_folder("/", None, None).await?;
 //! for file in files {
-//!     println!("{}: {}",
-//!         file.file_type.unwrap_or_default(),
+//!     println!("{:?}: {}",
+//!         file.file_type,
 //!         file.path.unwrap_or_default());
 //! }
 //!
@@ -94,7 +94,7 @@ impl FolderHandler {
     /// let (files, pagination) = handler.list_folder("/", None, None).await?;
     ///
     /// for file in files {
-    ///     println!("{}: {}", file.file_type.unwrap_or_default(), file.path.unwrap_or_default());
+    ///     println!("{:?}: {}", file.file_type, file.path.unwrap_or_default());
     /// }
     ///
     /// if pagination.has_next() {

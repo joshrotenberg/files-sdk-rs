@@ -548,8 +548,7 @@ impl FileHandler {
         // Stage 2: Stream file data to the provided URL with progress tracking
         // Note: Even for empty files (size=0), we must perform the upload stage.
         // S3 requires the Content-Length header, and the API tracks whether the upload occurred.
-        let _etag = if upload_part.upload_uri.is_some() {
-            let upload_uri = upload_part.upload_uri.as_ref().unwrap();
+        let _etag = if let Some(upload_uri) = upload_part.upload_uri.as_ref() {
             // Read the stream into a buffer with progress tracking
             // Note: We read in chunks to provide progress updates, but still buffer
             // the entire file before upload. This is required by the Files.com API
