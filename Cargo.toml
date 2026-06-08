@@ -11,7 +11,7 @@ keywords = ["files", "filescom", "api", "storage", "cloud"]
 categories = ["api-bindings", "web-programming"]
 
 [dependencies]
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_path_to_error = "0.1"
